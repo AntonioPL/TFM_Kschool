@@ -1,6 +1,6 @@
-﻿#Proyecto de Fin de Master: Automatización del procesado de encuestas de valoración
+﻿# Proyecto de Fin de Master: Automatización del procesado de encuestas de valoración
 
-##Motivación
+## Motivación
 
 Las encuestas de valoración son una herramienta muy útil para cualquier empresa u organización, en la medida que permite un feedback entre la prestación del servicio y el usuario. 
 No obstante el procesamiento de las mismas no es trivial en el caso de empresas medianas y pequeñas. Dicho proceso involucra la elaboración, recolección y procesado de los resultados.
@@ -11,7 +11,7 @@ análisis de los mismos. En el caso de pequeñas empresas, realizar dicha labor 
 se procesan los datos de la lectora de forma manual, se consolidan en un software, se realiza el análisis estadístico en otro y la presentación en otro, siendo muy complicado y en ciertos casos imposibles
 la automatización.
 
-##Descripción del Proyecto
+## Descripción del Proyecto
 
 En virtud de lo anterior se propone un automatizar el procesado a través de los siguientes pasos 
 
@@ -25,7 +25,7 @@ En virtud de lo anterior se propone un automatizar el procesado a través de los
 
 * Una vez analizados los datos, si se considera necesario se realizará un análisis de segmentación en función de detectar grupos diferenciados de profesores o asignaturas. El mismo se realizaría en R
 
-##Potenciales Beneficios para la empresa
+## Potenciales Beneficios para la empresa
 
 Se estima que este proyecto podría reducir en aproximadamente un tercio el tiempo de procesado de las encuestas. Las áreas críticas son el de limpieza manual de los datos brutos de la lectora y la 
 elaboración de los reportes, los cuales al estar completamente automatizado su tiempo de ejecución sería de minutos cuando en la actualidad se dedican horas en el mismo.

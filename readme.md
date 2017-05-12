@@ -32,7 +32,6 @@ elaboración de los reportes, los cuales al estar completamente automatizado su 
 
 Lo anterior permitiría a la empresa concentrarse en el diseño de la encuesta en lugar de su procesado, así como plantearse la posiblidad de una utilización más activa de esta herramienta en otras áreas
 
-[^1]:
-Gracias a Antonio Pita por esta recomendación.
+[^1]: Gracias a Antonio Pita por esta recomendación.
 
 

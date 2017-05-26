@@ -1,3 +1,8 @@
+******************************************************************************** 
+Condición 1: El registro anterior y posterior es el mismo 
+Condición 2: El registro anterior y posterior no es el mismo, pero el código de profesor del registro actual y el anterior es el mismo 
+Condición 3: el registro anterior y posterior no es el mismo, y tampoco el código de profesor coincide 
+******************************************************************************** 
 Sustituyendo fila 1 por el valor posterior, condicion 3 
 Sustituyendo fila 9 por el valor anterior condicion 1 
 Sustituyendo fila 44 por el valor anterior condicion 1 

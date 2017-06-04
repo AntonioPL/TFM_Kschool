@@ -1,4 +1,4 @@
-Sustituyendo fila 1 por el valor posterior, condicion 3 
+Sustituyendo fila 1 por el valor anterior condicion 1 
 Sustituyendo fila 9 por el valor anterior condicion 1 
 Sustituyendo fila 44 por el valor anterior condicion 1 
 Sustituyendo fila 76 por el valor anterior condicion 1 

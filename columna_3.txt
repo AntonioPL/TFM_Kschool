@@ -3,7 +3,6 @@ Sustituyendo fila 9 por el valor anterior condicion 1
 Sustituyendo fila 44 por el valor anterior condicion 1 
 Sustituyendo fila 76 por el valor anterior condicion 1 
 Sustituyendo fila 92 por el valor anterior condicion 1 
-Sustituyendo fila 134 por el valor anterior, condicion 2 
 Sustituyendo fila 170 por el valor anterior condicion 1 
 Sustituyendo fila 191 por el valor anterior condicion 1 
 Sustituyendo fila 257 por el valor anterior condicion 1 

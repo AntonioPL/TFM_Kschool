@@ -1,0 +1,516 @@
+---
+title: "TFM - Análisis Empírico"
+author: "Kamal Romero"
+date: "Julio de 2017"
+output:
+  html_document:
+    fig_height: 5
+    fig_width: 7
+    number_sections: yes
+    theme: flatly
+    toc: yes
+    toc_depth: 1
+  pdf_document:
+    toc: yes
+  word_document: default
+---
+
+El modo más habitual que poseen las instituciones de educación superior para cuantificar la labor 
+docente y/o el grado de satisfacción del alumnado es a través de las encuestas de valoración docente.
+Dicho instrumento esta lejos de ser perfecto y capturar todas las dimensiones tanto de la labor
+docente como de la relación profesor-alumno, pero por otro lado es un proceso estándar que permite
+la recolección de mucha información y además es un requisito impuesto por la  Agencia Nacional de
+Evaluación de la Calidad y Acreditación [(ANECA)](http://www.aneca.es/).
+
+Al ser de los pocos elementos cuantitaivos que poseen los centros, estos se emplean como input a la
+hora de elaborar políticas de mejora de la calidad de la enseñanza así como para evaluar la evolución
+de las mismas. Es en este sentido que es importante la adecuada interpretación de las encuestas.
+
+En la presente sección se realiza un ejericio empírico empleando los datos de valoraciones de las
+encuestas, el cual consiste en analizar el efecto de ciertas variables sobre la valoración global.
+Para ello procedemos en dos pasos: primero realizamos un analísis factorial para reducir la dimensión
+de los items de valoración (9) y condensarlos en dos factores que interpretamos como _docencia_ y 
+_relación alumno-profesor_. Posteriormente empleamos estos factores junto a información del profesorado
+(sexo, categoría, etc.) y de las asignaturas (cuantitativa vs no-cuantitaiva) como variables explicativas
+en una regresión logística cuya variable dependiente (target) es la valoración global del profesor.
+
+Lo anterior nos permitirá comprender como afectan las variables postuladas y los factores a los que hemos
+reducido los items de valoración, a la valoración del profesorado
+
+# Librerías Empleadas
+
+En este ejercicio se emplean las librerías `readr`, `corrplot`, `REdaS`, `nFactors`, `ggplot2`, `knitr`, `dplyr` y `reshape2`
+
+```{r librerias, include= FALSE}
+library(readr)
+library(corrplot)
+library(REdaS)
+library(nFactors)
+library(ggplot2)
+library(reshape2)
+library(knitr)
+library(dplyr)
+```
+
+# Carga de Datos
+
+Se fijan el directorio, se cargan los datos y se renombran las columnas
+
+```{r loaddata, results='hide', warning = FALSE}
+setwd("C:/Users/Usuario/Documents/KSchool/TFM")
+
+encuesta <- read_csv("~/KSchool/TFM/encuesta.csv")
+
+colnames(encuesta) <- c('Division', 'Curso', 'Grupo', 'Asignatura', 'Profesor', 'Item_1', 'Item_2', 
+                        'Item_3', 'Item_4', 'Item_5', 'Item_6', 'Item_7', 'Item_8', 'Item_9', 'Item_10')
+
+```
+
+Colocamos a cada división su nombre correspondiente
+
+```{r}
+for(i in 1:nrow(encuesta)){
+  if (encuesta$Division[i] == 1){
+    encuesta$Division[i] = 'Derecho'
+  }
+  else if (encuesta$Division[i] == 2){
+    encuesta$Division[i] = 'ADE'
+  }
+  else if (encuesta$Division[i] == 3){
+    encuesta$Division[i] = 'Der+ADE'
+  }
+  else{
+    encuesta$Division[i] = 'Psicología'
+  }
+}
+```
+
+# Inspección de los datos 
+
+```{r summarydata, warning = FALSE, fig.height = 5, fig.width = 5, fig.align = "center"}
+dim(encuesta)
+head(encuesta)
+tail(encuesta)
+summary(encuesta)
+```
+
+Creamos una sub-muestra la cual contenga solo los datos correspondientes a las valoraciones 
+de la encuesta. A continuación mostramos la matriz de correlaciones
+
+```{r summarydata1, warning = FALSE, fig.height = 5, fig.width = 5, fig.align = "center"}
+valoraciones.01 <- encuesta[,6:ncol(encuesta)]
+
+correlacion <- cor(valoraciones.01)
+correlacion
+corrplot(correlacion, type = "upper", order = "original", 
+         tl.col = "black")
+```
+
+
+Miramos las correlaciones excluyendo el item 10, que representa la valoración global del profesor
+la cual usaremos como variable dependiente en el ejercicio empírico
+
+```{r summarydata2, warning = FALSE, fig.height = 5, fig.width = 5, fig.align = "center"}
+valoraciones.02 <- valoraciones.01[,1:ncol(valoraciones.01)-1]
+correlacion2 <- cor(valoraciones.02)
+corrplot(correlacion2,  order = "hclust", 
+         tl.col = "black")
+```
+
+La matriz de correlaciones pareciera indicar la existencia de un grupo diferenciado de items o clusters compuesto por los items 1,2,3 y 9.
+
+Observamos los diagramas de cajas e histogramas de los items de valoración
+
+```{r summarydata3, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
+valoraciones.01.flat <- melt(valoraciones.01)
+p <- ggplot(valoraciones.01.flat)
+p <- p + aes(x=variable, y = value) + geom_boxplot(fill='steelblue', alpha = 0.7)
+p <- p + scale_y_continuous(name = "Valoración del Item", breaks = seq(0, 10, 2)) +
+  scale_x_discrete(name= "Items")
+p <- p + ggtitle("Diagramas de Cajas de las Valoraciones por Item") + 
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+p
+```
+
+En los diagramas de caja observamos que la mayoría de los items poseen una media en torno a 8.
+Los items 2, 8 y 9 son los que presentan más dispersión, los items 6 y 8 mayor mediana (9) y
+los items 2 y 5 la menor (7)
+
+Verificamos si este comportamiento es similar a través de las distintas divisiones
+
+```{r}
+encuesta.01 <- cbind(encuesta$Division,valoraciones.01)
+colnames(encuesta.01)[1] <- 'Division'
+```
+
+```{r summdiv1, warning = FALSE, fig.height = 7, fig.width = 8, fig.align = "center"}
+encuesta.01.flat <- melt(encuesta.01, id.vars = 'Division')
+p1 <- ggplot(encuesta.01.flat)
+p1 <- p1 + aes(x=variable, y = value) + geom_boxplot(fill='steelblue', alpha = 0.7)
+p1 <- p1 + scale_y_continuous(name = "Valoración del Item", breaks = seq(0, 10, 2)) +
+  scale_x_discrete(name= "Items")
+p1 <- p1 + facet_wrap(~Division)
+p1 <- p1 + ggtitle("Diagramas de Cajas de las Valoraciones por Item y División") + 
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+p1
+```
+
+En las divisiones de Derecho + ADE y Derecho tenemos 5 items con una mediana de 8 y otros 5 con una mediana
+de 9, aunque Derecho presenta una mayor dispersión. ADE y Psicología presenta medianas de 7, 8 y 9, en la primera solo hay un item (6) que presenta una mediana de 9 y el segundo dos (6 y 7).
+
+```{r summarydata4, warning = FALSE, fig.height = 6, fig.width = 8, fig.align = "center"}
+h <- ggplot(valoraciones.01.flat)
+h <- h + aes(value)
+h <- h + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
+h <- h + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item") +
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+h <- h + labs(x="Valoración", y="Frecuencia")
+h
+```
+
+En los histrogramas destaca el sesgo hacia la derecha que presentan todas las distribuciones de
+frecuencias. Lo cual es de esperar, ya que la evaluaciones están concentradas en las valoraciones
+altas y suele haber poca frecuencia de valoraciones muy bajas.
+
+En todos los casos la calificación más frecuente es la máxima (10), excepto en el item 5 (8) y
+el 10 que representa la valoración global del profesor (9). El item que mayor valoración presenta
+con diferencia es el 6 (puntualidad)
+
+```{r summdiv2, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
+encuesta.ade <- subset(encuesta.01, Division == 'ADE')
+encuesta.ade.flat <- melt(encuesta.ade) 
+hade <- ggplot(encuesta.ade.flat)
+hade <- hade + aes(value)
+hade <- hade + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
+hade <- hade + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. ADE") +
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+hade <- hade + labs(x="Valoración", y="Frecuencia")
+hade
+```
+
+La división de ADE presenta el comportamiento más disímil, solo en 3 de los items (6, 7 y 9) la moda
+es 10, en el item 2 es 7 y 9 (bimodal), en 4 (1, 3, 4  y 5) es 8 en los dos restantes
+
+```{r summdiv3, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
+encuesta.psi <- subset(encuesta.01, Division == 'Psicología')
+encuesta.psi.flat <- melt(encuesta.psi) 
+
+hpsi <- ggplot(encuesta.psi.flat)
+hpsi <- hpsi + aes(value)
+hpsi <- hpsi + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
+hpsi <- hpsi + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. Psicología") +
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+hpsi <- hpsi + labs(x="Valoración", y="Frecuencia")
+hpsi
+```
+
+La división de Psicología presenta un comportamiento  bastante similar al agregado.
+
+```{r summdiv4, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
+encuesta.der <- subset(encuesta.01, Division == 'Derecho')
+encuesta.der.flat <- melt(encuesta.der) 
+
+hder <- ggplot(encuesta.der.flat)
+hder <- hder + aes(value)
+hder <- hder + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
+hder <- hder + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. Derecho") +
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+hder <- hder + labs(x="Valoración", y="Frecuencia")
+hder
+```
+
+De la división de derecho destaca que la moda de todos los items es 10
+
+```{r summdiv5, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
+encuesta.derad <- subset(encuesta.01, Division == 'Der+ADE')
+encuesta.derad.flat <- melt(encuesta.derad) 
+
+hderad <- ggplot(encuesta.derad.flat)
+hderad <- hderad + aes(value)
+hderad <- hderad + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
+hderad <- hderad + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. Derecho + ADE") +
+  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+hderad <- hderad + labs(x="Valoración", y="Frecuencia")
+hderad
+```
+
+La distribución de calificaciones de Derecho + ADE presenta diferencias con las anteriores, que podrían 
+explicarse por el hecho que solo hay un grupo y por ende muy pocos datos en relación al resto de divisiones
+
+Observamos algunos estadísticos básicos de la valoración global por división
+
+```{r}
+encuesta.02 <- group_by(encuesta.01, Division) %>% 
+                summarise(Media = mean(Item_10), 
+                          Mediana = median(Item_10),
+                           Desviacion = sd(Item_10) )
+kable(as.matrix(encuesta.02), digits = 2, align = c('c', 'c', 'c', 'c'),
+      caption = 'Valoración Global por División')
+```
+
+Las divisiones de ADE y Psicología se encuentran levemente por debajo de la media, mientras que
+las de Derecho y Derecho+ADE por encima.
+
+# Análisis factorial
+
+El análisis factorial se puede interpretar como una técnica de reducción de dimensiones, pero
+a diferencia del análisis de componentes principales el primero asume un proceso generador de
+datos como explicaremos más adelante, no explica toda la varianza de la muestra y además se 
+concentra no en la varianza sino en las covarianzas entre las variables.
+
+En el presente trabajo asumimos que grupos de items se mueven en la misma dirección debido a que 
+los mismos evalúan una determinada aptitud o característica común. Lo anterior nos presenta un 
+par de retos, primero debido a la alta correlación entre los items arriba expuesta cualquier 
+ejercicio de regresión genera estimadores no eficientes y por ende los contrastes de hipótesis
+individual y conjunto de los parámetros no son informativos. Segundo, si consideramos que existen 
+factores comunes no observables que afectan de manera separada a grupos de items generando dicha
+correlación, podríamos emplear dichos factores comunes en lugar de todos los items.
+
+Por lo anterior realizamos un análisis factorial que nos permita extraer las variables no observables
+que afectan la covarianza entre items.
+
+Como se menciona arriba el análisis factorial asume un proceso generador de datos, el cual establece
+que las variables en estudio dependen linealmente de un conjunto de variables no observables o 
+_latentes_. Consideramos un vector de variables observables $x =(x_1,x_2, \ldots , x_p)$ que se
+encuentran relacionados linealmente con un número de variables latentes $f_1,f_2, \ldots, f_k$ donde
+$k<p$ de la siguiente forma:
+
+$$\begin{eqnarray}
+x_1  & = \mu_1 + \lambda_{11}f_1 + \ldots + \lambda_{1k}f_k + u_1\\
+\vdots & \vdots \\
+x_p  & = \mu_2 + \lambda_{p1}f_1 + \ldots + \lambda_{pk}f_k + u_p
+\end{eqnarray}$$
+
+representado de modo matricial
+
+$$\mathbf{x} = \mathbf{\mu} + \Lambda\mathbf{f} + \mathbf{u}$$
+
+donde $\mathbf{f}$ es un vector $(k \times 1)$ de variables _latentes_ no observadas que llamaremos factores. $\Lambda$ una matriz $(p \times k)$ de parámetros desconocidos y $\mathbf{u}$ un vector $(p \times 1)$ de perturbaciones.
+
+Las expresiones anteriores establecen que los valores observados (en nuestro caso los items de valoración)
+dependen linealmente de los factores y una perturbación aleatoria que resume el efecto 
+de todas las variables distintas a los factores sobre los valores observados. Como es usual se asume que
+los errores son independientes entre si y de los factores, y siguen una distribución normal de  media cero y varianza constante $N_m(0,\Psi)$. Lo anterior implica que $\Psi$ es una matriz diagonal.
+
+Las constantes de la matriz $\Lambda$ se denominan _cargas_ y representan como los factores afectan a las
+variables observadas. Nos diran por ejemplo si el factor "docencia" ejerece un efecto importantes o no
+sobre el item 8 por ejemplo. Se asume que las cargas son variables aleatorias que siguen una distribución
+normal multiviarante estandarizada $N_m(0,\mathbf{I})$.
+
+Dado que $\mathbf{x}$ es una suma de variables normales tiene distribución normal. Dado que la media de los
+factores y la perturbación es cero la media de $\mathbf{x}$ es $\mathbf{\mu}$, resumiendo
+$\mathbf{x} \thicksim N_m(\mathbf{\mu},\mathbf{V})$
+
+A partir de lo anterior podemos calcular la varianza de la variable $x_i$:
+
+$$\begin{align}
+& Var(x_i)   =  \lambda_{i1}^2Var(f_1)+ \ldots + \lambda_{ik}^2Var(f_k)+Var(u_i) \\
+& Var(x_i)   =  \sum_{j=1}^{k}\lambda_{ij}^2 + \psi_i 
+\end{align}$$
+
+La varianza de cada variable observada se puede descomponer en dos partes. $\sum_{j=1}^{k}\lambda_{ij}^2$
+se denomina comunalidad y representa aquella parte de la $x_i$ explicada por los factores y por
+ende la varianza compartida con el resto de las variables. Por su parte $\psi_i$ es la varianza específica
+y por lo tanto no compartida con las demás variables.
+
+Podemos obtener la matriz de covarianzas entre las observaciones partiendo de su definición 
+$E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})']$, donde
+$\mathbf{x}-\mathbf{\mu} =  \Lambda\mathbf{f} + \mathbf{u}$
+
+$$\begin{align}
+E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] =&   E[(\Lambda\mathbf{f} + \mathbf{u})(\Lambda\mathbf{f} + \mathbf{u})']  \\
+ E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] =& \Lambda E[\mathbf{f}\mathbf{f'}']\Lambda'+
+ \Lambda E[\mathbf{f}\mathbf{u}']+\Lambda E[\mathbf{f'}\mathbf{u}]+E[\mathbf{u}\mathbf{u}']\\
+ E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] =& \Lambda \Lambda'+E[\mathbf{u}\mathbf{u}']\\
+ E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] =& \Lambda \Lambda'+\mathbf{\psi}
+\end{align}$$
+donde $\Lambda \Lambda'$ y $\mathbf{\psi}$ representan la comunalidad y varianza específica descrita arriba.
+
+El problema que se plantea el modelo factorial es estimar los parámetros $\hat{\Lambda}$ y $\hat{\mathbf{\psi}}$ a partir de la matriz de covarianzas _muestral_ de modo que esta sea lo
+más próxima posible a la matriz de covarianzas teórica $\Lambda \Lambda'+\mathbf{\psi}$.
+
+Dicha estimación suele hacerse por el método de los factores principales o por máxima verosimilitud,
+emplearemos esta última este ejercicio. 
+
+Por último mencionamos el tópico de las rotaciones, el cual emplearemos posteriormente. En el modelo
+factorial las cargas no son únicas, es decir, para el mismo conjunto de observaciones distintos 
+valores de los parámetros podrían representar la misma ralación entre factores (no observables) y las
+$\mathbf{x}$. 
+
+Formalmente, si multiplicamos una matriz ortogonal $M$ por la matriz de pesos de la siguiente forma:
+$$\mathbf{x} = \mathbf{\mu} + (\Lambda M)(M'\mathbf{f}) + \mathbf{u}$$
+Este modelo es indistinguible del anterior si escribimos los factores como $\mathbf{f^*=M'\mathbf{f}}$ y
+la matriz de cargas $\Lambda^*=\Lambda M$: 
+$$\mathbf{x} = \mathbf{\mu} + \Lambda^* \mathbf{f}^* + \mathbf{u}$$
+La matriz de covarianzas de este modelo "nuevo" siguiendo la expresión arriba derivada sería:
+$$E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] = \Lambda^*\Lambda^{*'} +\mathbf{\psi} = (\Lambda M) (\Lambda M)'+\mathbf{\psi}$$
+
+Dado que $MM'=I$, la matriz de covarianzas sería $\Lambda \Lambda'+\mathbf{\psi}$, la misma que la de
+las observaciones originales. Formalmente se dice que el modelo está _indeterminado ante rotaciones_.
+
+No obstante, lo que pareciera ser una desventaja en realidad es una propiedad útil en la práctica. Por 
+ejemplo en nuestro caso hemos postulado la existencia de un número determinado de factores, lo cual
+implica unas cargas altas y otras cercanas a cero de modo que de manera clara unos factores afectan a
+unas variables y a otras no. Pero este no suele ser el primer resultado que se obtiene al estimar los
+factores, se podrían obtener factores complicados de entender ya que afectan de manera similar a todas
+las variables.
+
+Cuando esto ocurre podemos "rotar" los factores de manera que obtengamos una interpretación más 
+razonable y sea equivalente al modelo original. Las rotaciones que se emplean suelen generar cargas
+muy altas y otras muy pequeñas, de modo que sea más fácil la interpretación y/o más cercanas a nuestro
+a priori.
+
+## Contrastes previos a la extracción de factores
+
+El análisis factorial tiene sentido en la medida que las variables en estudio se encuentren
+altamente correladadas, los tests previos realizan contrastes que permiten contrastar la 
+hipótesis de alta o baja correlación entre las variables
+
+### Test de Barlett
+
+Asumiendo el caso extremo de ninguna relación entre las variables, la matriz de correlaciones
+sería una matriz identidad. Es decir, los elementos fuera de la diagonal que representan las
+correlaciones entre las variables serían iguales a cero, y la diagonal como es habitual igual
+a uno. En este caso el determinante de la matriz es igual a uno
+
+Partiendo de esto el test de Barlett toma como hipótesis nula que el determinante de la matriz de
+correlaciones es igual a uno y como alternativa que el mismo es distinto de cero. Bajo la hipótesis
+nula el estadístico de contraste sigue una distribución chi-cuadrado.
+
+```{r barlett}
+BT <- bartlett.test(valoraciones.02)
+BT$statistic
+BT$p.value
+```
+
+El valor del estadístico es alto y el p-valor cercano a cero, por lo que se rechaza la 
+hipótesis nula de ausencia de correlación entre las variables con un nivel de significación
+del 1%
+
+### Test KMO
+
+El siguiente contraste es el test KMO (Kaiser, Meyer y Olkin) o de adecuación muestral, el cual
+parte de la idea de que  #si un cojunto de variables se encuentran altamente relacionadas entre
+si, sus coeficientes de correlación serán altos mientras que sus coeficientes de correlación 
+parcial (relación entre pares de variables sin tomar en cuenta el efecto del resto de las
+variables) serán bajos. De ser esto así, las variables comunes (factores) entre las variables
+serán de importancia
+
+Algebraicamente se contrasta si la siguiente expresión 
+
+$$\frac{\sum\limits_{j}\sum\limits_{h\neq j}r_{jh}^2}{\sum\limits_{j}\sum\limits_{h\neq j}r_{jh}^2 + \sum\limits_{j}\sum\limits_{h\neq j}a_{jh}^2}$$
+donde $r_{jh}$ es el coeficiente de correlación entre las variables $x_j$ y $x_h$. $a_{jh}$ es el coeficiente de correlación parcial entre las variables $x_j$ y $x_h$.  
+
+Como se puede observar, a medida que es menor el valor del coeficiente de correlación parcial
+más se acerca a la unidad la expresión. Valores cercanos a uno del KMO indican un alto grado de 
+asociación de las variables debido a factores comunes.
+
+En la literatura varios autores señalan distintas _escalas_ de la adecuación de los datos a un
+estudio factorial según el valor del KMO. Enumeramos las propuesta por Kaiser y citada en la 
+documentación del paquete [REdaS](https://cran.r-project.org/web/packages/REdaS/REdaS.pdf): 
+maravilloso si KMO ≥ 0.9, mieritorio si 0.9 > KMO ≥ 0.8 <; mediano para 0.8 > KMO ≥ 0.7; mediocre
+para 0.7 > KMO ≥ 0.6; miserable si 0.6 > KMO ≥ 0.5 e inaceptable para KMO < 0.5.
+
+```{r KMO}
+KMO.T <- KMOS(valoraciones.02, use= "pairwise.complete.obs")
+KMO.T$KMO
+```
+
+El valor del test KMO es de 0.9337983, por lo que nuestra muestra puede ser calificada de adecuada
+para un análisis factorial
+
+## Determinación de los factores
+
+Procedemos a estimar los factores con el uso de la función `factanal` la cual emplea el método de
+máxima verosimilitud. 
+
+Dada la estructura de las preguntas de la encuentas, partimos de la hipótesis de que existen dos factores.
+
+```{r factor1}
+set.seed(123)
+
+fa.valoraciones1 <- factanal(valoraciones.02, factors = 2, rotation = "none", scores = "regression")
+fa.valoraciones1$loadings
+fa.valoraciones1$uniquenesses
+fa.valoraciones1$STATISTIC
+fa.valoraciones1$PVAL
+```
+
+EL primer factor tiene una alta carga en los items 1,2,3 y 9, mientras que el factor 2 no pareciera
+tener cargas relevantes en ningún item.
+
+```{r factor11, warning = FALSE, fig.height = 7, fig.width = 7, fig.align = "center"}
+cargas1 <- fa.valoraciones1$loadings[,1:2]
+plot(cargas1,type="n")
+text(cargas1,labels=names(valoraciones.02),cex=.7)
+```
+
+Como se observa en el gráfico en términos relativos pareciera que solo el factor 6 tuviera algo de carga relevante.
+
+Aplicamos una rotación ortogonal empleando el método Varimax, el cual maximiza la varianza de las cargas
+al cuadrado de cada factor, de este modo hace que algunas de las cargas sean lo más grandes posibles
+mientras que el resto sean lo más pequeñas. De este modo obtenemos cargas muy altas en algunos items 
+y casi nulas en otros.
+
+
+```{r factor2}
+fa.valoraciones2 <- factanal(valoraciones.02, factors = 2, rotation = "varimax")
+fa.valoraciones2$loadings
+fa.valoraciones2$uniquenesses
+fa.valoraciones2$STATISTIC
+fa.valoraciones2$PVAL
+```
+
+Ahora el factor 1 sigue teniendo cargas altas en los items 1, 2, 3 y 9 aunque el peso del item 1 ha
+disminuido. Por su parte el factor 2 ha incrementado basante sus cargas en ciertos items, retiene el
+item 6 y presenta saturaciones altas en los items 7 y 8.
+
+```{r factor21, warning = FALSE, fig.height = 7, fig.width = 7, fig.align = "center"}
+cargas2 <- fa.valoraciones2$loadings[,1:2]
+plot(cargas2,type="n")
+text(cargas2,labels=names(valoraciones.02),cex=.7)
+```
+
+Se empieza a visualizar nuestra hipótesis de partida de dos factores que representen los aspectos 
+docentes de la asignatura (items 1, 2, 3 y 9) y la relación alumno-profesor (items 6, 7 y 8). Podríamos 
+considerar el item 4 como una mezcla de ambos, mientras que no queda claro donde incluir el item 5 aunque 
+presenta un sesgo hacia la opción docente.
+
+Ahora realizamos una rotación oblicua, la cual a diferencia de la ortogonal permite cierta correlación
+entre los factores. Se emplea el método Promax
+
+```{r factor3}
+fa.valoraciones3 <- factanal(valoraciones.02, factors = 2, rotation = "promax")
+fa.valoraciones3$loadings
+fa.valoraciones3$uniquenesses
+fa.valoraciones3$STATISTIC
+fa.valoraciones3$PVAL
+```
+
+Como era de esperarse ahora tenemos saturaciones más claras, en este caso refuerzan las conclusiones de
+la rotación ortogonal.
+
+```{r factor31, warning = FALSE, fig.height = 7, fig.width = 7, fig.align = "center"}
+cargas3 <- fa.valoraciones3$loadings[,1:2]
+plot(cargas3,type="n")
+text(cargas3,labels=names(valoraciones.02),cex=.7)
+```
+
+En el gráfico se observa una separación más clara entre los items que corresponden a cada factor, los correspondientes a la labor docente y a la relación profesor alumno.
+
+Los items 4 y 5 poseen cargas muy similares en ambos factores, el primero tiene una carga algo mayor
+en el factor 1 y el último una carga levemente mayor en el factor 1.
+
+Finalmente analizamos el gráfico de sedimentación para verificar el número de factores a tomar
+
+```{r factor32, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
+ev <- eigen(cor(valoraciones.02)) # get eigenvalues
+ap <- parallel(subject=nrow(valoraciones.02),var=ncol(valoraciones.02), rep=100, cent=.05)
+nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
+plotnScree(nS)
+```
+
+Observando la tasa a la cual deja de caer la varianza explicada, pareciera que dos factores es una buena alternativa, a pesar que el segundo valor propio se encuentra debajo de uno.
+
+Decidimos mantener dos factores debido a su facilidad de interpretación y asociación con los factores
+no observables que se han postulado al inicio del análisis.

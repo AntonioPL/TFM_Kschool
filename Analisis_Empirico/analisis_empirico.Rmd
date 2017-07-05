@@ -39,7 +39,7 @@ reducido los items de valoración, a la valoración del profesorado
 
 # Librerías Empleadas
 
-En este ejercicio se emplean las librerías `readr`, `corrplot`, `REdaS`, `nFactors`, `ggplot2`, `knitr`, `dplyr` y `reshape2`
+En este ejercicio se emplean las librerías `readr`, `corrplot`, `REdaS`, `nFactors`, `ggplot2`, `knitr`, `dplyr`, `psych` y `reshape2`
 
 ```{r librerias, include= FALSE}
 library(readr)
@@ -50,6 +50,7 @@ library(ggplot2)
 library(reshape2)
 library(knitr)
 library(dplyr)
+library(psych)
 ```
 
 # Carga de Datos
@@ -92,6 +93,7 @@ dim(encuesta)
 head(encuesta)
 tail(encuesta)
 summary(encuesta)
+describe(encuesta[,6:ncol(encuesta)])
 ```
 
 Creamos una sub-muestra la cual contenga solo los datos correspondientes a las valoraciones 
@@ -143,7 +145,7 @@ encuesta.01 <- cbind(encuesta$Division,valoraciones.01)
 colnames(encuesta.01)[1] <- 'Division'
 ```
 
-```{r summdiv1, warning = FALSE, fig.height = 7, fig.width = 8, fig.align = "center"}
+```{r summdiv1, warning = FALSE, fig.height = 8, fig.width = 9, fig.align = "center"}
 encuesta.01.flat <- melt(encuesta.01, id.vars = 'Division')
 p1 <- ggplot(encuesta.01.flat)
 p1 <- p1 + aes(x=variable, y = value) + geom_boxplot(fill='steelblue', alpha = 0.7)
@@ -163,7 +165,7 @@ h <- ggplot(valoraciones.01.flat)
 h <- h + aes(value)
 h <- h + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
 h <- h + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item") +
-  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+  theme(plot.title = element_text(hjust = 0.5)) 
 h <- h + labs(x="Valoración", y="Frecuencia")
 h
 ```
@@ -214,7 +216,7 @@ hder <- ggplot(encuesta.der.flat)
 hder <- hder + aes(value)
 hder <- hder + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
 hder <- hder + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. Derecho") +
-  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+  theme(plot.title = element_text(hjust = 0.5)) 
 hder <- hder + labs(x="Valoración", y="Frecuencia")
 hder
 ```
@@ -229,7 +231,7 @@ hderad <- ggplot(encuesta.derad.flat)
 hderad <- hderad + aes(value)
 hderad <- hderad + geom_histogram(fill='steelblue', col = 'black', breaks=seq(0, 10, by = 1)) 
 hderad <- hderad + facet_wrap(~variable) + ggtitle("Histogramas de las Valoraciones por Item. Derecho + ADE") +
-  theme(plot.title = element_text(hjust = 0.5)) #Esto es para centrar el título
+  theme(plot.title = element_text(hjust = 0.5)) 
 hderad <- hderad + labs(x="Valoración", y="Frecuencia")
 hderad
 ```
@@ -243,7 +245,8 @@ Observamos algunos estadísticos básicos de la valoración global por división
 encuesta.02 <- group_by(encuesta.01, Division) %>% 
                 summarise(Media = mean(Item_10), 
                           Mediana = median(Item_10),
-                           Desviacion = sd(Item_10) )
+                          Desviacion = sd(Item_10),
+                          Obsevaciones = n())
 kable(as.matrix(encuesta.02), digits = 2, align = c('c', 'c', 'c', 'c'),
       caption = 'Valoración Global por División')
 ```
@@ -449,7 +452,7 @@ Como se observa en el gráfico en términos relativos pareciera que solo el fact
 
 Aplicamos una rotación ortogonal empleando el método Varimax, el cual maximiza la varianza de las cargas
 al cuadrado de cada factor, de este modo hace que algunas de las cargas sean lo más grandes posibles
-mientras que el resto sean lo más pequeñas. De este modo obtenemos cargas muy altas en algunos items 
+mientras que el resto sean lo más pequeñas. Así obtenemos cargas muy altas en algunos items 
 y casi nulas en otros.
 
 
@@ -504,7 +507,7 @@ en el factor 1 y el último una carga levemente mayor en el factor 1.
 Finalmente analizamos el gráfico de sedimentación para verificar el número de factores a tomar
 
 ```{r factor32, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
-ev <- eigen(cor(valoraciones.02)) # get eigenvalues
+ev <- eigen(cor(valoraciones.02))
 ap <- parallel(subject=nrow(valoraciones.02),var=ncol(valoraciones.02), rep=100, cent=.05)
 nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
 plotnScree(nS)

@@ -1,5 +1,5 @@
 library(readr)
-library(PerformanceAnalytics)
+library(psych)
 library(corrplot)
 library(REdaS)
 library(nFactors)
@@ -7,6 +7,20 @@ library(ggplot2)
 library(reshape2)
 library(tidyverse)
 library(dplyr)
+library(readxl)
+library(rmarkdown)
+library(charlatan)
+
+##########################################################################################
+#-----------PROCESADO DE ENCUESTAS DE VALORACIÓN DE UNA EMPRESA EDUCATIVA-----------------
+#-----------------------------------SEGUNDA PARTE-----------------------------------------
+#-----------------ANÁLISIS EMPÍRICO Y ELABORACIÓN AUTOMÁTICA DE REPORTES------------------
+#-----------------Autor: Kamal A. Romero S.--Contacto: karomero@ucm.es--------------------
+##########################################################################################
+
+#-----------------------------------------------------------------------------------------
+#                             Pre-procesado
+#-----------------------------------------------------------------------------------------
 
 #Fijamos el directorio
 setwd("C:/Users/Usuario/Documents/KSchool/TFM")
@@ -41,10 +55,14 @@ str(encuesta)
 head(encuesta)
 tail(encuesta)
 summary(encuesta)
-
+describe(encuesta[,6:ncol(encuesta)])
 
 #Armamos una sub-muestra solo con las valoraciones de las encuestas
 valoraciones.01 <- encuesta[,6:ncol(encuesta)]
+
+#-----------------------------------------------------------------------------------------
+#                                Análisis descriptivo
+#-----------------------------------------------------------------------------------------
 
 #Analizamos las correlaciones
 correlacion <- cor(valoraciones.01)
@@ -61,8 +79,6 @@ valoraciones.02 <- valoraciones.01[,1:ncol(valoraciones.01)-1]
 correlacion2 <- cor(valoraciones.02)
 corrplot(correlacion2,  order = "hclust", 
          tl.col = "black")
-
-##Análisis descriptivo
 
 #Boxplot
 valoraciones.01.flat <- melt(valoraciones.01)
@@ -159,8 +175,15 @@ hderad
 encuesta.02 <- group_by(encuesta.01, Division) %>% 
                 summarise(Media = mean(Item_10), 
                           Mediana = median(Item_10),
-                           Desviación = sd(Item_10) )
+                          Desviación = sd(Item_10),
+                          Obsevaciones = n())
 encuesta.02
+
+#-----------------------------------------------------------------------------------------
+#                                Análisis Empírico
+#               Análisis factorial (reducción de dimensión) y Regresión logística
+#-----------------------------------------------------------------------------------------
+
 
 ##Contrastes previos a la extracción de factores
 
@@ -252,15 +275,100 @@ ap <- parallel(subject=nrow(valoraciones.02),var=ncol(valoraciones.02), rep=100,
 nS <- nScree(x=ev$values, aparallel=ap$eigen$qevpea)
 plotnScree(nS)
 
+##Modelo Logit
+
+datos_profesores <- read_excel("~/KSchool/TFM/datos_profesores.xlsx")
+
+datos_profesores$`publicaciones cientificas` <- NULL
+colnames(datos_profesores)[6:ncol(datos_profesores)] <- c('Gestion','Acreditacion')
+
+#-----------------------------------------------------------------------------------------
+#                        Elaboración Automática de Reportes
+#-----------------------------------------------------------------------------------------
 
 
-fa.valoraciones1 <- factanal(valoraciones.02, factors = 3, rotation = "promax", scores = "regression")
-fa.valoraciones1$loadings
-fa.valoraciones1$uniquenesses
-fa.valoraciones1$STATISTIC
-fa.valoraciones1$PVAL
-#fa.valoraciones1$scores
-#graficos
-cargas1 <- fa.valoraciones1$loadings[,1:2]
-plot(cargas1,type="n")
-text(cargas1,labels=names(valoraciones.02),cex=.7)
+#Cargamos el archivo con los items de preguntas de la encuesta
+items <- read_excel("~/KSchool/TFM/items.xlsx", col_names = FALSE)
+
+#Elaboramos los reportes en base a la información de las asignaturas,
+#profesores y las valoraciones de los items. Así que prescindimos de los
+#datos originales las columnas  de División, Grupo y Asignatura
+reporte.01 <- encuesta[,-c(1:3)]
+
+#Vector de asignaturas
+asignaturas <- unique(encuesta$Asignatura)
+
+
+#Elaboramos un bucle el cual va creando subconjuntos de los datos originales según
+#asignatura y profesor (en el caso que la misma asignatura la imparta más de un 
+#profesor), y para cada par asignatura-profesor crea una tabla de frecuencias de las
+#respuestas de cada item, dos columnas con la media y la desviación típica, así como
+#la pregunta que corresponde a cada item
+
+tablas <- list()
+nombres <- list()
+
+for(i in asignaturas){
+  reptemp <- subset(reporte.01, Asignatura == i)  #Se filtra por asignatura
+  profesores <- unique(reptemp$Profesor)          #Se determina cuantos profersores tiene la asignatura
+  for(j in profesores){                           #Se elabora un reporte por (asignatura,profesor)
+    nombre <- paste(i,j, sep = '-')               #Se crea una etiqueta (i,j) de la forma 'i-j' para localizar la tabla en la lista
+    nombres[[nombre]] <- nombre                   #Se crea una lista de etiquetas, que se empleará posteriormente
+    reptemp.01 <- subset(reptemp, Profesor == j)  #Se filtra por profesor
+    tab1 <- sapply(reptemp.01, function(x) round(mean(x), digits = 2))    #Se calcula la media de cada item y se almacena en `tab1`
+    tab2 <- sapply(reptemp.01, function(x) round(sd(x), digits=2))        #Se calcula la desviación típica de cada item y se almacena en `tab2`
+    reptemp.02 <- sapply(reptemp.01[,3:ncol(reptemp.01)],
+                         function(x) unname(table(factor(x, levels = 1:10)))    #Se calcula la tabla de frecuencias por item. Se convierte a factor para que
+                          )                                                     #aparezcan los items con frecuencia cero y se eliminan las etiquetas con `unname`  
+    tab3 <- rbind(reptemp.02, rbind(tab1[3:length(tab1)], tab2[3:length(tab2)]))  #Juntamos la tabla de frecuencias con los vectores de media y desviación
+    tabla.freq <- as.data.frame(t(tab3))                                          #Se transpone la tabla
+    colnames(tabla.freq) <- c(seq(1:10), 'Media', 'Desviación Típica')            #Se nombran las columnas
+    rownames(tabla.freq) <- items$X0                                    #Se añaden las preguntas de cada item
+    tablas[[nombre]] <- tabla.freq[,c(11,12,seq(1:10))]                 #Se reordenan las columnas y almacena la tabla en la lista
+  }
+}
+
+
+#Para guardar el anonimato de las encuestas, se generean nombres de asignaturas y profesores
+#ficticios, empleando el paquete `charlatan`. Se crea un data frame en el cual se almacenan
+#los códigos de profesores y asignaturas con sus nombres ficticios correspondientes
+
+#Genera nombres para profesores
+profes.cod <- unique(encuesta$Profesor)
+nombres.fic <-  ch_generate('name',n=length(unique(encuesta$Profesor)))
+profes.01 <- data.frame(profes.cod, nombres.fic)
+rownames(profes.01) <- profes.01$profes
+profes.01[,1] <- NULL
+
+#Genera nombres para asignaturas
+asignaturas.cod <- unique(encuesta$Asignatura)
+asignaturas.fic <- ch_generate('job',n=length(unique(encuesta$Asignatura)))
+cursos.01 <- data.frame(asignaturas.cod, asignaturas.fic)
+rownames(cursos.01) <- cursos.01$asignaturas.cod
+cursos.01[,1] <- NULL
+
+
+#Generación de reportes con Markdown
+
+#Para cada elemento de la tabla `tablas` el cual representa un cuadro por (asignatura,profesor)
+#con las preguntas de cada item, su frecuencia, la media y la desviación típica; se elabora un
+#reporte en pdf donde aparece la asignatura, el profesor y el cuadro anterior que resume el 
+#resultado de la encuesta.
+
+for (i in 1:length(tablas)){
+  cuadro <- tablas[[i]]                   #Se accede a la tabla. Esta es la tabla que aparece en el informe
+  id <- nombres[[i]]                      #Se accede a la etiqueta generada en el bucle anterior
+  id2 <- strsplit(id[[1]], split = '-')   #Se separa el código de asignatura y profesor
+  id.01 <- id2[[1]][1]                    #Código de asignatura
+  id.02 <- id2[[1]][2]                    #Código de profesor
+  prof <- profes.01[row.names(profes.01)==id.02,]     #Se asocia el código de profesor a su nombre ficticio
+  curs <- cursos.01[row.names(cursos.01)==id.01,]     #Se asocia el código de asignatura a su nombre ficticio
+  n <- c(curs,prof)
+  s <- c('Asignatura', 'Profesor')
+  df <- data.frame(s,n)                       #Se crea un data frame con los nombres de asignatura y profesor
+  colnames(df) <- c()                         #Se eliminan las etiquetas de las columnas
+  cabecera <- t(df)                           #Se traspone el data frame. Este es la cabecera del informe
+  render("Prueba_reporte.rmd",output_file = paste0('report.', id, '.pdf'))    
+}
+
+

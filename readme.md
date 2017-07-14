@@ -46,7 +46,7 @@ Para poder replicar lo realizado en el proyecto, se deben ejecutar los archivos 
 
 * Primero: El código python en el archivo limpieza.py
 
-* Segundo: El código R en el archivo encuestas.r. Para ejecutar este código *se debe fijar el directorio de trabajo en el archivo*
+* Segundo: El código R en el archivo encuestas.r. Para ejecutar este código **se debe fijar el directorio de trabajo en el archivo**
 
 Se obtendrá como resultado 96 reportes en formato pdf y los resultados del ejercicio empírico
 

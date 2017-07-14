@@ -52,7 +52,7 @@ Se obtendrá como resultado 96 reportes en formato pdf y los resultados del ejer
 
 ## Dashboard y otros documentos
 
-El dashboard se encuentra [ACÁ](https://github.com/kamecon/TFM_Kschool/tree/master/Replicacion)
+El dashboard se encuentra [ACÁ](https://kamecon.shinyapps.io/Reporte/)
 
 Los resultados empíricos se encuentran descritos con detalle en el archivo analisis_empirico.html que se encuentra en la carpeta [Replicacion](https://github.com/kamecon/TFM_Kschool/tree/master/Replicacion)
 

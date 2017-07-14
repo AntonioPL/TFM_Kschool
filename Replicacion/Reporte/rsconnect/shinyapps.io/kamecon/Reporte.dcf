@@ -1,0 +1,11 @@
+name: Reporte
+title: Reporte
+account: kamecon
+server: shinyapps.io
+appId: 196658
+bundleId: 902934
+url: https://kamecon.shinyapps.io/Reporte/
+when: 1499972240.49104
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: logo.jpg

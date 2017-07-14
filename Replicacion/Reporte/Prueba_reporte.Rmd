@@ -1,0 +1,28 @@
+---
+title: "ENCUESTA DE EVALUACION DEL PROFESORADO"
+#author: "Kamal Romero"
+date: "CURSO 2016-2017"
+output: pdf_document
+classoption: landscape
+#css: test.css
+---
+
+```{r, echo=FALSE, warning=FALSE}
+library(knitr)
+library(kableExtra)
+```
+
+
+
+```{r, echo=FALSE, as.is=TRUE, warning=FALSE}
+kable(cabecera, format='latex', align = c('cc')) %>% 
+  kable_styling(bootstrap_options = "striped", font_size = 15, full_width = T)
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+kable(cuadro, format = 'latex', align = rep('c', 12)) %>% 
+  kable_styling(bootstrap_options = "striped", font_size = 10) %>%
+  column_spec(1,width='10cm') %>% 
+  column_spec(3,width='1.5cm')
+```

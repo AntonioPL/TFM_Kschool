@@ -26,9 +26,9 @@ Al ser de los pocos elementos cuantitaivos que poseen los centros, estos se empl
 hora de elaborar políticas de mejora de la calidad de la enseñanza así como para evaluar la evolución
 de las mismas. Es en este sentido que es importante la adecuada interpretación de las encuestas.
 
-En la presente sección se realiza un ejericio empírico empleando los datos de valoraciones de las
+En la presente sección se realiza un ejercicio empírico empleando los datos de valoraciones de las
 encuestas, el cual consiste en analizar el efecto de ciertas variables sobre la valoración global.
-Para ello procedemos en dos pasos: primero realizamos un analísis factorial para reducir la dimensión
+Para ello procedemos en dos pasos: primero realizamos un análisis factorial para reducir la dimensión
 de los items de valoración (9) y condensarlos en dos factores que interpretamos como _docencia_ y 
 _relación alumno-profesor_. Posteriormente empleamos estos factores junto a información del profesorado
 (sexo, categoría, etc.) y de las asignaturas (cuantitativa vs no-cuantitaiva) como variables explicativas
@@ -39,7 +39,7 @@ reducido los items de valoración, a la valoración del profesorado
 
 # Librerías Empleadas
 
-En este ejercicio se emplean las librerías `readr`, `corrplot`, `REdaS`, `nFactors`, `ggplot2`, `knitr`, `dplyr`, `psych` y `reshape2`
+En este ejercicio se emplean las librerías `readr`, `corrplot`, `REdaS`, `nFactors`, `ggplot2`, `knitr`, `dplyr`, `psych` `readxl`, `gmodels`, `lmtest`, `mfx`, `ROCR`, `caTools`, `stargazer`, `kableExtra` y `reshape2`
 
 ```{r librerias, include= FALSE}
 library(readr)
@@ -51,6 +51,15 @@ library(reshape2)
 library(knitr)
 library(dplyr)
 library(psych)
+library(readxl)
+library(gmodels)
+library(lmtest)
+library(mfx)
+library(ROCR)
+library(caTools)
+library(pander)
+library(stargazer)
+library(kableExtra)
 ```
 
 # Carga de Datos
@@ -206,7 +215,8 @@ hpsi <- hpsi + labs(x="Valoración", y="Frecuencia")
 hpsi
 ```
 
-La división de Psicología presenta un comportamiento  bastante similar al agregado.
+La división de Psicología presenta un comportamiento bastante similar al agregado. Hay que recordar que esta división
+representa el 61% de las observaciones.
 
 ```{r summdiv4, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
 encuesta.der <- subset(encuesta.01, Division == 'Derecho')
@@ -221,7 +231,7 @@ hder <- hder + labs(x="Valoración", y="Frecuencia")
 hder
 ```
 
-De la división de derecho destaca que la moda de todos los items es 10
+De la división de Derecho destaca que la moda de todos los items es 10
 
 ```{r summdiv5, warning = FALSE, fig.height = 5, fig.width = 8, fig.align = "center"}
 encuesta.derad <- subset(encuesta.01, Division == 'Der+ADE')
@@ -237,7 +247,7 @@ hderad
 ```
 
 La distribución de calificaciones de Derecho + ADE presenta diferencias con las anteriores, que podrían 
-explicarse por el hecho que solo hay un grupo y por ende muy pocos datos en relación al resto de divisiones
+explicarse por el hecho que solo hay un grupo y por ende muy pocos datos en relación al resto de divisiones.
 
 Observamos algunos estadísticos básicos de la valoración global por división
 
@@ -256,21 +266,21 @@ las de Derecho y Derecho+ADE por encima.
 
 # Análisis factorial
 
-El análisis factorial se puede interpretar como una técnica de reducción de dimensiones, pero
-a diferencia del análisis de componentes principales el primero asume un proceso generador de
+El análisis factorial se puede interpretar como una técnica de reducción de dimensionalidad, pero
+a diferencia del análisis de componentes principales, el primero asume un proceso generador de
 datos como explicaremos más adelante, no explica toda la varianza de la muestra y además se 
 concentra no en la varianza sino en las covarianzas entre las variables.
 
-En el presente trabajo asumimos que grupos de items se mueven en la misma dirección debido a que 
-los mismos evalúan una determinada aptitud o característica común. Lo anterior nos presenta un 
-par de retos, primero debido a la alta correlación entre los items arriba expuesta cualquier 
-ejercicio de regresión genera estimadores no eficientes y por ende los contrastes de hipótesis
+En el presente trabajo asumimos que hay grupos de items que se mueven en la misma dirección debido a que 
+evalúan una determinada aptitud o característica común. Lo anterior nos presenta un 
+par de retos. Primero, debido a la alta correlación entre los items arriba expuesta cualquier 
+ejercicio de regresión genera estimadores no eficientes, y por ende, los contrastes de hipótesis
 individual y conjunto de los parámetros no son informativos. Segundo, si consideramos que existen 
 factores comunes no observables que afectan de manera separada a grupos de items generando dicha
 correlación, podríamos emplear dichos factores comunes en lugar de todos los items.
 
-Por lo anterior realizamos un análisis factorial que nos permita extraer las variables no observables
-que afectan la covarianza entre items.
+Debido a lo anterior realizamos un análisis factorial que nos permita extraer las variables no observables
+que afectan a la covarianza entre items.
 
 Como se menciona arriba el análisis factorial asume un proceso generador de datos, el cual establece
 que las variables en estudio dependen linealmente de un conjunto de variables no observables o 
@@ -281,7 +291,7 @@ $k<p$ de la siguiente forma:
 $$\begin{eqnarray}
 x_1  & = \mu_1 + \lambda_{11}f_1 + \ldots + \lambda_{1k}f_k + u_1\\
 \vdots & \vdots \\
-x_p  & = \mu_2 + \lambda_{p1}f_1 + \ldots + \lambda_{pk}f_k + u_p
+x_p  & = \mu_p + \lambda_{p1}f_1 + \ldots + \lambda_{pk}f_k + u_p
 \end{eqnarray}$$
 
 representado de modo matricial
@@ -292,17 +302,17 @@ donde $\mathbf{f}$ es un vector $(k \times 1)$ de variables _latentes_ no observ
 
 Las expresiones anteriores establecen que los valores observados (en nuestro caso los items de valoración)
 dependen linealmente de los factores y una perturbación aleatoria que resume el efecto 
-de todas las variables distintas a los factores sobre los valores observados. Como es usual se asume que
-los errores son independientes entre si y de los factores, y siguen una distribución normal de  media cero y varianza constante $N_m(0,\Psi)$. Lo anterior implica que $\Psi$ es una matriz diagonal.
+de todas las variables distintas a los factores sobre los valores observados. Como es usual, se asume que
+los errores son independientes entre si y de los factores, y siguen una distribución normal de  media cero y varianza constante, $N_p(0,\Psi)$. Lo anterior implica que $\Psi$ es una matriz diagonal.
 
-Las constantes de la matriz $\Lambda$ se denominan _cargas_ y representan como los factores afectan a las
+Los elementos de la matriz $\Lambda$ se denominan _cargas_ y representan como los factores afectan a las
 variables observadas. Nos diran por ejemplo si el factor "docencia" ejerece un efecto importantes o no
 sobre el item 8 por ejemplo. Se asume que las cargas son variables aleatorias que siguen una distribución
-normal multiviarante estandarizada $N_m(0,\mathbf{I})$.
+normal multiviarante estandarizada $N_k(0,\mathbf{I})$.
 
-Dado que $\mathbf{x}$ es una suma de variables normales tiene distribución normal. Dado que la media de los
+Dado que $\mathbf{x}$ es una suma de variables normales tiene distribución normal. Asimismo ya que la media de los
 factores y la perturbación es cero la media de $\mathbf{x}$ es $\mathbf{\mu}$, resumiendo
-$\mathbf{x} \thicksim N_m(\mathbf{\mu},\mathbf{V})$
+$\mathbf{x} \thicksim N_p(\mathbf{\mu},\mathbf{V})$
 
 A partir de lo anterior podemos calcular la varianza de la variable $x_i$:
 
@@ -311,7 +321,7 @@ $$\begin{align}
 & Var(x_i)   =  \sum_{j=1}^{k}\lambda_{ij}^2 + \psi_i 
 \end{align}$$
 
-La varianza de cada variable observada se puede descomponer en dos partes. $\sum_{j=1}^{k}\lambda_{ij}^2$
+La varianza de cada variable observada se puede descomponer en dos partes. Por un lado, $\sum_{j=1}^{k}\lambda_{ij}^2$
 se denomina comunalidad y representa aquella parte de la $x_i$ explicada por los factores y por
 ende la varianza compartida con el resto de las variables. Por su parte $\psi_i$ es la varianza específica
 y por lo tanto no compartida con las demás variables.
@@ -329,15 +339,15 @@ E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] =&   E[(\Lambda\mathbf{f}
 \end{align}$$
 donde $\Lambda \Lambda'$ y $\mathbf{\psi}$ representan la comunalidad y varianza específica descrita arriba.
 
-El problema que se plantea el modelo factorial es estimar los parámetros $\hat{\Lambda}$ y $\hat{\mathbf{\psi}}$ a partir de la matriz de covarianzas _muestral_ de modo que esta sea lo
+El problema que se plantea en el modelo factorial es estimar los parámetros $\hat{\Lambda}$ y $\hat{\mathbf{\psi}}$ a partir de la matriz de covarianzas _muestral_, de modo que esta sea lo
 más próxima posible a la matriz de covarianzas teórica $\Lambda \Lambda'+\mathbf{\psi}$.
 
-Dicha estimación suele hacerse por el método de los factores principales o por máxima verosimilitud,
-emplearemos esta última este ejercicio. 
+Dicha estimación suele hacerse o por el método de los factores principales o por máxima verosimilitud,
+nosotros emplearemos esta última en este ejercicio. 
 
 Por último mencionamos el tópico de las rotaciones, el cual emplearemos posteriormente. En el modelo
 factorial las cargas no son únicas, es decir, para el mismo conjunto de observaciones distintos 
-valores de los parámetros podrían representar la misma ralación entre factores (no observables) y las
+valores de los parámetros podrían representar la misma relación entre factores (no observables) y las
 $\mathbf{x}$. 
 
 Formalmente, si multiplicamos una matriz ortogonal $M$ por la matriz de pesos de la siguiente forma:
@@ -345,7 +355,7 @@ $$\mathbf{x} = \mathbf{\mu} + (\Lambda M)(M'\mathbf{f}) + \mathbf{u}$$
 Este modelo es indistinguible del anterior si escribimos los factores como $\mathbf{f^*=M'\mathbf{f}}$ y
 la matriz de cargas $\Lambda^*=\Lambda M$: 
 $$\mathbf{x} = \mathbf{\mu} + \Lambda^* \mathbf{f}^* + \mathbf{u}$$
-La matriz de covarianzas de este modelo "nuevo" siguiendo la expresión arriba derivada sería:
+La matriz de covarianzas de este modelo "nuevo" siguiendo la expresión derivada anteriormente sería:
 $$E[(\mathbf{x}-\mathbf{\mu})(\mathbf{x}-\mathbf{\mu})'] = \Lambda^*\Lambda^{*'} +\mathbf{\psi} = (\Lambda M) (\Lambda M)'+\mathbf{\psi}$$
 
 Dado que $MM'=I$, la matriz de covarianzas sería $\Lambda \Lambda'+\mathbf{\psi}$, la misma que la de
@@ -355,7 +365,7 @@ No obstante, lo que pareciera ser una desventaja en realidad es una propiedad ú
 ejemplo en nuestro caso hemos postulado la existencia de un número determinado de factores, lo cual
 implica unas cargas altas y otras cercanas a cero de modo que de manera clara unos factores afectan a
 unas variables y a otras no. Pero este no suele ser el primer resultado que se obtiene al estimar los
-factores, se podrían obtener factores complicados de entender ya que afectan de manera similar a todas
+factores, ya que se podrían obtener factores complicados de entender al afectar de manera similar a todas
 las variables.
 
 Cuando esto ocurre podemos "rotar" los factores de manera que obtengamos una interpretación más 
@@ -363,21 +373,42 @@ razonable y sea equivalente al modelo original. Las rotaciones que se emplean su
 muy altas y otras muy pequeñas, de modo que sea más fácil la interpretación y/o más cercanas a nuestro
 a priori.
 
+## Hipótesis del número de factores
+
+A continuación mostramos como elaboramos nuestra hipótesis de partida, la existencia de dos factores que engloban los
+aspectos docentes por un lado, y aquellos relativos a la relación entre el profesor y el alumno respectivamente.
+
+Mostramos las preguntas que se realizan en la encuesta
+
+```{r preguntas}
+items.enc <- read_excel("~/KSchool/TFM/items.xlsx", col_names = FALSE)
+num.preg <- seq(10)
+items.enc <-  cbind(num.preg,items.enc)
+colnames(items.enc) <- c('Número','Preguntas')
+kable(items.enc, format = 'html') %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+Se observa que los 5 primeros items y el 9, parecieran tener más relación con la actividad docente como tal, 
+mientras que los que van del 6 al 8 con la interacción entre el docente y el alumno.
+
+A partir de esto postulamos la potencial existencia de dos factores: _docencia_ y _relación alumno-profesor_.
+
 ## Contrastes previos a la extracción de factores
 
 El análisis factorial tiene sentido en la medida que las variables en estudio se encuentren
 altamente correladadas, los tests previos realizan contrastes que permiten contrastar la 
-hipótesis de alta o baja correlación entre las variables
+hipótesis de alta o baja correlación entre las variables, en nuestro caso los items de la encuesta.
 
 ### Test de Barlett
 
-Asumiendo el caso extremo de ninguna relación entre las variables, la matriz de correlaciones
+Asumiendo el caso extremo de ninguna relación entre los items, la matriz de correlaciones
 sería una matriz identidad. Es decir, los elementos fuera de la diagonal que representan las
-correlaciones entre las variables serían iguales a cero, y la diagonal como es habitual igual
+correlaciones entre los items serían iguales a cero, y la diagonal como es habitual igual
 a uno. En este caso el determinante de la matriz es igual a uno
 
 Partiendo de esto el test de Barlett toma como hipótesis nula que el determinante de la matriz de
-correlaciones es igual a uno y como alternativa que el mismo es distinto de cero. Bajo la hipótesis
+correlaciones es igual a uno y como alternativa que el mismo es distinto de uno. Bajo la hipótesis
 nula el estadístico de contraste sigue una distribución chi-cuadrado.
 
 ```{r barlett}
@@ -387,19 +418,19 @@ BT$p.value
 ```
 
 El valor del estadístico es alto y el p-valor cercano a cero, por lo que se rechaza la 
-hipótesis nula de ausencia de correlación entre las variables con un nivel de significación
+hipótesis nula de ausencia de correlación entre los items con un nivel de significatividad
 del 1%
 
 ### Test KMO
 
 El siguiente contraste es el test KMO (Kaiser, Meyer y Olkin) o de adecuación muestral, el cual
-parte de la idea de que  #si un cojunto de variables se encuentran altamente relacionadas entre
+parte de la idea de que si un cojunto de variables se encuentran altamente relacionadas entre
 si, sus coeficientes de correlación serán altos mientras que sus coeficientes de correlación 
 parcial (relación entre pares de variables sin tomar en cuenta el efecto del resto de las
-variables) serán bajos. De ser esto así, las variables comunes (factores) entre las variables
+variables) serán bajos. De ser esto así, los factores comunes entre las variables
 serán de importancia
 
-Algebraicamente se contrasta si la siguiente expresión 
+Algebraicamente se calcula si la siguiente expresión 
 
 $$\frac{\sum\limits_{j}\sum\limits_{h\neq j}r_{jh}^2}{\sum\limits_{j}\sum\limits_{h\neq j}r_{jh}^2 + \sum\limits_{j}\sum\limits_{h\neq j}a_{jh}^2}$$
 donde $r_{jh}$ es el coeficiente de correlación entre las variables $x_j$ y $x_h$. $a_{jh}$ es el coeficiente de correlación parcial entre las variables $x_j$ y $x_h$.  
@@ -409,7 +440,7 @@ más se acerca a la unidad la expresión. Valores cercanos a uno del KMO indican
 asociación de las variables debido a factores comunes.
 
 En la literatura varios autores señalan distintas _escalas_ de la adecuación de los datos a un
-estudio factorial según el valor del KMO. Enumeramos las propuesta por Kaiser y citada en la 
+estudio factorial según el valor del KMO. Enumeramos la propuesta por Kaiser y citada en la 
 documentación del paquete [REdaS](https://cran.r-project.org/web/packages/REdaS/REdaS.pdf): 
 maravilloso si KMO ≥ 0.9, mieritorio si 0.9 > KMO ≥ 0.8 <; mediano para 0.8 > KMO ≥ 0.7; mediocre
 para 0.7 > KMO ≥ 0.6; miserable si 0.6 > KMO ≥ 0.5 e inaceptable para KMO < 0.5.
@@ -437,6 +468,7 @@ fa.valoraciones1$loadings
 fa.valoraciones1$uniquenesses
 fa.valoraciones1$STATISTIC
 fa.valoraciones1$PVAL
+factores1 <- fa.valoraciones1$scores
 ```
 
 EL primer factor tiene una alta carga en los items 1,2,3 y 9, mientras que el factor 2 no pareciera
@@ -448,7 +480,7 @@ plot(cargas1,type="n")
 text(cargas1,labels=names(valoraciones.02),cex=.7)
 ```
 
-Como se observa en el gráfico en términos relativos pareciera que solo el factor 6 tuviera algo de carga relevante.
+Como se observa en el gráfico en términos relativos pareciera que solo el item 6 tuviera algo de carga relevante en el factor 2.
 
 Aplicamos una rotación ortogonal empleando el método Varimax, el cual maximiza la varianza de las cargas
 al cuadrado de cada factor, de este modo hace que algunas de las cargas sean lo más grandes posibles
@@ -457,11 +489,12 @@ y casi nulas en otros.
 
 
 ```{r factor2}
-fa.valoraciones2 <- factanal(valoraciones.02, factors = 2, rotation = "varimax")
+fa.valoraciones2 <- factanal(valoraciones.02, factors = 2, rotation = "varimax", scores = "regression")
 fa.valoraciones2$loadings
 fa.valoraciones2$uniquenesses
 fa.valoraciones2$STATISTIC
 fa.valoraciones2$PVAL
+factores2 <- fa.valoraciones2$scores
 ```
 
 Ahora el factor 1 sigue teniendo cargas altas en los items 1, 2, 3 y 9 aunque el peso del item 1 ha
@@ -483,11 +516,12 @@ Ahora realizamos una rotación oblicua, la cual a diferencia de la ortogonal per
 entre los factores. Se emplea el método Promax
 
 ```{r factor3}
-fa.valoraciones3 <- factanal(valoraciones.02, factors = 2, rotation = "promax")
+fa.valoraciones3 <- factanal(valoraciones.02, factors = 2, rotation = "promax", scores = "regression")
 fa.valoraciones3$loadings
 fa.valoraciones3$uniquenesses
 fa.valoraciones3$STATISTIC
 fa.valoraciones3$PVAL
+factores3 <- fa.valoraciones3$scores
 ```
 
 Como era de esperarse ahora tenemos saturaciones más claras, en este caso refuerzan las conclusiones de
@@ -517,3 +551,635 @@ Observando la tasa a la cual deja de caer la varianza explicada, pareciera que d
 
 Decidimos mantener dos factores debido a su facilidad de interpretación y asociación con los factores
 no observables que se han postulado al inicio del análisis.
+
+# Regresión Logística
+
+En esta sección se construye una regresión logística con el objeto de analizar el efecto de una serie de variables
+sobre la valoración de una asignatura.
+
+La variable dependiente (respuesta, target) es la valoración de una asignatura. Las variables independientes o
+regresores son:
+
+* Los factores obtenidos en el apartado anterior, y los cuales resumen las características latentes evaluadas
+en la encuesta, _docencia_ y _relación alumno-profesor_
+* Características individuales de los profesores:
+    + Edad
+    + Sexo
+    + Tipo de asignatura (cuantitativa o no)
+    + Categoría (licenciado, doctor, titular o catedrático)
+    + Tener o no un cargo administrativo dentro de la universidad
+    + Estar en posesión o no de una acreditación de la ANECA
+
+Los factores y la edad son variables continuas, el tipo de asignatura, cargo administrativo y la acreditación
+son binarias 0-1 y la categoría es una variable categórica con 4 niveles del 1 al 4.
+
+Las variables se encuentran codificadas del siguiente modo:
+
+* Sexo: 1 si es hombre y 0 si es mujer
+* Cuantitativa: 1 si el profesor imparte alguna asignatura de tipo cuantitativo y 0 en caso contrario
+* Categoria: 1 licenciado, 2 doctor, 3 titular y 4 catedrático
+* Tareas de gestión: 1 si se dedica a ello y 0 si no lo hace 
+* Acreditación: toma el valor 1 si el individuo tiene algún tipo de acreditación y 0 en caso contrario 
+(los funcionarios están incluidos como acreditados)
+
+Cargamos los datos e inspeccionamos los mismos
+
+```{r}
+datos_profesores <- read_excel("~/KSchool/TFM/datos_profesores_v2.xlsx")
+
+dim(datos_profesores)
+head(datos_profesores)
+tail(datos_profesores)
+summary(datos_profesores)
+```
+
+Eliminos las filas con NA's. En nuestro caso específico es solo la última fila
+
+```{r}
+datos_profesores <- na.omit(datos_profesores)
+```
+
+Convertimos la tabla en data frame
+
+```{r}
+datos_profesores.01 <- as.data.frame(datos_profesores)
+```
+
+Cambiamos los nombres de las dos últimas columnas
+
+```{r}
+colnames(datos_profesores.01)[6:ncol(datos_profesores.01)] <- c('Gestion','Acreditacion')
+```
+
+Hacemos que los códigos sean los índices del data frame
+
+```{r}
+rownames(datos_profesores.01) <- datos_profesores.01$codigo
+datos_profesores.01[,1] <- NULL
+```
+
+Añadimos los factores estimados en el apartado anterior 
+
+```{r}
+encuesta.fac <- cbind(encuesta, factores3)
+```
+
+Asimismo eliminamos los items de respuesta, ya que (parte de) dicha información está resumida
+en los factores
+
+```{r}
+encuesta.fac01 <- encuesta.fac[,-c(6:14)]
+```
+
+
+También eliminamos la información administrativa distinta del profesor
+
+```{r}
+encuesta.fac01 <- encuesta.fac01[,-c(1:4)]
+```
+
+En el siguiente bucle añadimos las columnas de características de los docentes al data frame de las
+encuestas
+
+```{r}
+encuesta.logit <- as.data.frame(encuesta.fac01)
+encuesta.logit.01 <- list()
+  
+for(i in 1:nrow(encuesta.logit)){
+  encuesta.logit.01[[i]] <- cbind(encuesta.logit[i,], 
+                                  datos_profesores.01[as.character(encuesta.logit[i,'Profesor']),])
+}
+```
+
+"Juntamos" las elementos de las filas como filas y convertimos en un data frame
+
+```{r}
+encuesta.logit.temp <- do.call('rbind',encuesta.logit.01)
+encuesta.logit.temp1 <- as.data.frame(encuesta.logit.temp)
+```
+
+Debido al tipo de contrato hay profesores que no aparecen en la base de datos del centro, al no tener
+sus características pero si estar en las encuestas, las columnas de características aparece como NA's al juntar las columnas.
+
+Eliminamos estos registros
+
+```{r}
+encuesta.logit.02 <- na.omit(encuesta.logit.temp1)
+dim(encuesta.logit.temp1)
+dim(encuesta.logit.02)
+```
+
+Finalmente, eliminamos la columna de profesores, ya que la hemos empleado solo para añadir las 
+características de los mismos
+
+```{r}
+encuesta.logit.03 <- encuesta.logit.02[,-c(1)]
+```
+
+Procedemos a convertir la variable dependiente `Item_10` en binaria. Se sigue un trabajo anterior hecho
+en el centro y se divide la valoración global de la encuesta en _Alta_ si la valoración es mayor a 6 y 
+_Baja_ en caso contrario
+
+```{r}
+encuesta.logit.03$Target <- 1
+
+for(i in 1:nrow(encuesta.logit.03)){
+  if (encuesta.logit.03$Item_10[i] > 6){
+    encuesta.logit.03$Target[i] = 1
+  }
+  else{
+    encuesta.logit.03$Target[i] = 0
+  }
+}
+```
+
+Observamos las proporciones
+
+Totales
+
+```{r}
+CrossTable(encuesta.logit.03$Target)
+```
+
+Se observan proporciones algo desblanceadas, 25% de valoraciones bajas y 75% altas
+
+Según categoría
+
+```{r}
+CrossTable(encuesta.logit.03$Target, encuesta.logit.03$categoria,
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE,
+           prop.chisq = FALSE)
+```
+
+
+Según sexo
+
+```{r}
+CrossTable(encuesta.logit.03$Target, encuesta.logit.03$sexo,
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE,
+           prop.chisq = FALSE)
+```
+
+Según gestión
+
+```{r}
+CrossTable(encuesta.logit.03$Target, encuesta.logit.03$Gestion,
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE,
+           prop.chisq = FALSE)
+```
+
+Según naturaleza de asignatura
+
+```{r}
+CrossTable(encuesta.logit.03$Target, encuesta.logit.03$cuantitativa,
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE,
+           prop.chisq = FALSE)
+```
+
+
+Según acreditación
+
+```{r}
+CrossTable(encuesta.logit.03$Target, encuesta.logit.03$Acreditacion,
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE,
+           prop.chisq = FALSE)
+```
+
+
+Salvo por una categoría de profesor (titular), el hecho de estar acreditado y las asignaturas
+cuantitativas, no se aprecian grandes diferencias en las proporciones de notas altas y bajas 
+
+Analizamos las correlaciones entre las variables
+
+
+```{r, warning = FALSE, fig.height = 5, fig.width = 5, fig.align = "center"}
+correlacion.logit <- cor(encuesta.logit.03[,2:9])
+correlacion.logit
+corrplot(correlacion.logit, type = "upper", order = "original", 
+         tl.col = "black", tl.cex = 0.9)
+```
+
+Convertimos la variables categóricas a factor
+
+```{r}
+encuesta.logit.03$Target <- as.factor(encuesta.logit.03$Target)
+encuesta.logit.03$sexo <- as.factor(encuesta.logit.03$sexo)
+encuesta.logit.03$cuantitativa <- as.factor(encuesta.logit.03$cuantitativa)
+encuesta.logit.03$Gestion <- as.factor(encuesta.logit.03$Gestion)
+encuesta.logit.03$categoria <- as.factor(encuesta.logit.03$categoria)
+encuesta.logit.03$Acreditacion <- as.factor(encuesta.logit.03$Acreditacion)
+```
+
+Eliminamos la variable `Item_10`, ya que una vez teniendo la variable binaria `Target` no
+nos hace falta
+
+```{r}
+encuesta.logit.03$Item_10 <- NULL
+```
+
+Finalmente tenemos los datos que vamos a emplear en el logit, la primera columna es la variable 
+independiente (target, respuesta) y el resto las variables independientes (regresores, características)
+
+Inspeccionamos los datos
+
+```{r}
+str(encuesta.logit.03)
+dim(encuesta.logit.03)
+summary(encuesta.logit.03)
+describe(encuesta.logit.03)
+```
+
+## Estimación (entrenamiento)
+
+```{r logit}
+valoracion.logit <- glm(Target ~ ., family = binomial(link = 'logit'), data = encuesta.logit.03)
+stargazer(valoracion.logit, type ='text',  p.auto=FALSE)
+```
+
+Observando la salida del modelo detectamos que solo los dos factores y la edad son estadísticamente
+significativos. La mayoría de las características individuales de los profesores no parecieran ser
+relevantes a la hora de que el alumno evalúe la asignatura, mientras que los factores que engloban el
+desempeño de la actividad docente, la relación profesor-alumno y la edad del instructor si lo son.
+
+
+## Efectos marginales
+
+Debido a la naturaleza no lineal del modelo, no es posible interpretar los coeficientes directamente 
+como en el modelo lineal, dado que el efecto marginal de la variable $x_i$ sobre la variable dependiente
+$y$, $(E(y|x))$ deja de ser una constante $(\beta_i)$ y pasa a ser dicha constante multiplicada por un factor de 
+escala no trivial. Desarrollamos brevemente esta situación a continuación.
+
+En un modelo lineal la probabilidad condicionada a las características viene dada por:
+
+$$P(y=1|\mathbf{x})=\beta_0+\beta_1 x_1+\ldots+\beta_n x_n=\mathbf{x\beta}$$
+donde \mathbf{x} es una matriz de tamaño $n\times k$, y $\beta$ un vector de tamaño $k\times 1$ 
+
+Mientras que en la regresión logística 
+
+$$P(y=1|\mathbf{x})=G(\beta_0+\beta_1 x_1+\ldots+\beta_n x_n)=G(\mathbf{x\beta})$$
+Como se observa la combinación lineal de regresores o características $(\mathbf{x\beta})$ afecta a la variable
+dependiente a través la función link $G()$, que en nuestro caso es la función logística. En el caso de la regresión
+lineal la función link es la función identidad, de ahí que los $\beta$'s se interpreten directamente como el
+efecto de un cambio en $x_i$ sobre $y$
+
+Si deseamos obtener los efectos parciales o marginales en la regresión lineal, simplemente calculamos 
+$\frac{\partial{y}}{\partial{x_i}}=\beta_i$
+
+Mientras que en la regresión logística
+$$\frac{\partial{y}}{\partial{x_i}}=\frac{\partial{G(\mathbf{x\beta})}}{\partial{x_i}}\beta_i=g(\mathbf{x\beta})\beta_i$$
+donde $G()$ es la función de distribución acumulada y $g()$ la función de densidad. 
+
+Para calcular el efecto marginal debemos conocer no solo $\beta_i$ sino $\mathbf{x\beta}$ evaluado en $g()$
+
+No obstante como se observa en la expresión anterior el signo de $\beta$ sigue representando la dirección
+del efecto marginal, por lo que podremos afirmar que los dos factores y la edad poseen un efecto positivo 
+sobre la valoración global
+
+El cálculo de los efectos marginales plantea el problema de que $x$'s emplear en el cálculo de la expresión anterior.
+Debido a que nuestro modelo posee un gran número de variables categóricas, optamos por el empleo del
+_efecto marginal promedio_ en detrimento del efecto marginal _en el promedio_, el cual implicaría sustituir los $x$
+por sus valores promedios.
+
+El efecto marginal promedio se calcula del siguiente modo
+
+$$\frac{1}{n}\sum_{i=1}^n g(\mathbf{x_i\hat{\beta}})=\mathbf{\hat{\beta}}g(\overline{\mathbf{x\hat{\beta}}})$$
+La expresión anterior no es más que la media de la combinación lineal con la estimación de $\beta$, evaluado en la función
+logística. En la implementación abajo mostrada queda más clara esta idea
+
+```{r marginal1}
+fav <- mean(dlogis(predict(valoracion.logit)))
+efectos.marginales <- fav*valoracion.logit$coefficients
+efectos.marginales
+efectos.marginales[2]
+efectos.marginales[3]
+efectos.marginales[4]
+```
+
+En lugar de calcular manualmente los efectos marginales, el paquete `mfx` a través de su función `logitmfx`
+nos da el logit estimado y en lugar de presentar los $\beta$'s nos muestra directamente los efectos marginales
+
+```{r marginal2}
+valoracion.logit.marg <- logitmfx(Target ~ ., data = encuesta.logit.03, atmean = FALSE)
+valoracion.logit.marg
+```
+
+Según estos resultados, un incremento de una unidad del factor 1 (docencia) incrementa la probabilidad de obtener
+una valoración alta en un 24%, mientras que un alza unitaria del factor 2 (relación profesor-alumno) aumenta la 
+probabilidad de una valoración alta en un 22%. Mientras que una variación de la edad no parece tener ningún efecto
+sobre dicha probabilidad.
+
+Esto nos lleva a plantear una primera conclusión, **no existen grandes diferencias en el efecto marginal de ambos factores**
+
+Una manera más sencilla de interpretar los coeficientes es calculando la exponencial de los mismos.
+Recordemos que estamos estimando la siguiente relación:
+
+$$P(valoracion = 1 | \mathbf{x} ) = \frac{1}{1+ e^{-\mathbf{x\beta}}}$$
+Escribiendo el denominador de la expresión como:
+
+$$1+\frac{1}{e^\mathbf{x\beta}}$$
+podemos escribir la probabilidad condicionada de una valoración alta como:
+
+$$\begin{align}
+P(valoracion = 1 | \mathbf{x} ) = & \frac{1}{1+\frac{1}{e^\mathbf{x\beta}}} \\
+                                 = & \frac{1}{\frac{1+e^\mathbf{x\beta}}{e^\mathbf{x\beta}}}\\
+                                 = & \frac{e^\mathbf{x\beta}}{1+e^\mathbf{x\beta}}
+\end{align}$$
+
+por lo que la probabilidad condicionada de una valoración baja sería:
+
+$$\begin{align}
+P(valoracion = 0 | \mathbf{x} ) = & 1- \frac{e^\mathbf{x\beta}}{1+e^\mathbf{x\beta}} \\
+                                 = & \frac{1}{1+e^\mathbf{x\beta}}
+\end{align}$$
+
+Con lo anterior obtenemos el ratio de probabilidades
+
+$$\begin{align}
+\frac{P(valoracion = 1 | \mathbf{x} )}{P(valoracion = 0 | \mathbf{x} )} = & 
+\frac{\frac{e^\mathbf{x\beta}}{1+e^\mathbf{x\beta}}}{\frac{1}{1+e^\mathbf{x\beta}}}
+                                 = & e^\mathbf{x\beta}
+\end{align}$$
+
+El exponencial de los coeficientes nos indican que tan más probable es en términos relativos obtener una
+valoración alta cuando varía $x_i$ en una unidad manteniendo el restos de la $x$'s constante
+
+```{r risk_ratio}
+valoracion.logit.or <- exp(coef(valoracion.logit))
+stargazer(valoracion.logit, type="text", coef=list(valoracion.logit.or), p.auto=FALSE)
+```
+
+Manteniendo el resto de variables constante, ante un incremento unitario del factor 1 (docencia), es 50,14 veces
+más probable tener una valoración alta. Una variación del factor 2 (relación profesor-alumno) en una unidad hace 
+38 veces más probable obtener una valoración alta. Mientras que la variable sexo no parece tener efecto alguno 
+debido a que su valor es uno.
+
+## Diagnosis del modelo
+
+La bondad de ajuste del modelo logit se suele realizar de diversas formas.
+
+Mediante una medida similar al $R^2$ empleado en el modelo lineal, conocido
+como pseudo-$R^2$ o de MacFadden. Dicha medida se expresa del siguiente modo:
+
+$$1-\frac{\mathcal{L}(\hat{\beta})}{\mathcal{L}_0}$$
+donde $\mathcal{L}(\hat{\beta})$ es la verosimilitud del modelo estimado (sin 
+restringir) y $\mathcal{L}_0$ es la verosimilitud del modelo solo con el 
+intercepto
+
+Podemos construir el pseudo-$R^2$ con parte de la información de la función `glm`
+el $\mathcal{L}(\hat{\beta})$ viene dado por `Residual Deviance`  y $\mathcal{L}_0$ por
+`Null deviance`, ambos se pueden ver al final de la salida de la función `summary`
+
+```{r macfadenn}
+1 - valoracion.logit$deviance/valoracion.logit$null.deviance
+```
+
+Se obtiene un pseudo $R^2$ de 0.63, el cual es un valor relativamente alto tomando en cuenta
+el problema planteado.
+
+
+Otra forma de evaluar el modelo es mediante un contraste de significatividad global, similar al 
+contraste F empleado en los modelos lineales. Para esto se emplea un contraste de razón de verosimilitudes 
+estándar del tipo 
+
+$$LR=2(\mathcal{L}(\hat{\beta})-\mathcal{L}_0)$$
+el cual podemos calcular con el empleo de la librería `lmtest` y su función `lrtest`
+
+```{r Ftest}
+lrtest(valoracion.logit)
+```
+
+Se rechaza la hipótesis nula de que el modelo estimado y un modelo con solo el intercepto sean iguales,
+por lo que el test de significatividad conjunta del modelo apunta a que el mismo es significativo.
+
+### Matriz de confusión
+
+Por último presentamos la matriz de confusión, la cual compara los datos predichos por el modelo con los 
+datos reales. Las columnas muestran los datos observados mientras que las filas muestran los datos predichos
+por el modelo asumiendo que una probabilidad mayor a 0,5 implica una valoración alta. Luego volveremos a si
+escoger 0,5 como punto de corte es adecuado o no.
+
+```{r confusion1, warning=FALSE}
+table(encuesta.logit.03$Target)
+table(predicciones = predict(valoracion.logit, newdata = encuesta.logit.03, type= 'response')>0.5)
+matriz.confusion <-  table(prediccion = predict(valoracion.logit, newdata = encuesta.logit.03, type='response')>0.5,
+      observado =encuesta.logit.03$Target)
+kable(matriz.confusion, format = 'html') %>% 
+    kable_styling(bootstrap_options = "striped", full_width = F)
+  
+```
+
+Calculamos la precisión, especificidad y sensibilidad 
+
+```{r confusion11}
+A1 = matriz.confusion[1,1] / sum(matriz.confusion[,1])
+A2 = matriz.confusion[2,2] / sum(matriz.confusion[,2])
+A3 <- sum(diag(matriz.confusion)) / sum(matriz.confusion)
+
+A1
+A2
+A3
+```
+
+La precisión es del 91,4%, la tasa de acierto de las valoraciones bajas es del 78% y las altas del 95%
+
+El tomar 0,5 como límite para determinar la probabilidad de una valoración alta es una decisión estándar pero
+arbitraria. Existen maneras de determinar si esta tasa es la adecuada empleando varios criterios, a continuación
+mostramos como varía la precisión del modelo con distintos limites.
+
+```{r cut, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
+prediccion <- prediction(fitted(valoracion.logit),encuesta.logit.03$Target)
+precision <- performance(prediccion,'acc')
+ac.val = max(unlist(precision@y.values))
+th = unlist(precision@x.values)[unlist(precision@y.values) == ac.val]
+plot(precision)
+abline(v=th, col='grey', lty=2)
+```
+
+En la gráfica se observa que el límite que maximiza la precisión es 0,6. Repetimos la elaboración de
+la matriz de confusión con ese límite
+
+```{r confusion2}
+table(encuesta.logit.03$Target)
+table(predicciones = predict(valoracion.logit, newdata = encuesta.logit.03, type= 'response')>th)
+matriz.confusion <-  table(prediccion = predict(valoracion.logit, newdata = encuesta.logit.03, type='response')>th,
+                           observado =encuesta.logit.03$Target)
+kable(matriz.confusion, format='html') %>% 
+    kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Calculamos la precisión, especificidad y sensibilidad 
+
+```{r confusion22}
+A1 = matriz.confusion[1,1] / sum(matriz.confusion[,1])
+A2 = matriz.confusion[2,2] / sum(matriz.confusion[,2])
+A3 <- sum(diag(matriz.confusion)) / sum(matriz.confusion)
+
+A1
+A2
+A3
+```
+
+La precisión aumenta levemente de 91,4% a 91,6%. Dicho incremento se explica por un aumento de la tasa de 
+aciertos de las valoraciones bajas de 78,1% a 84.47%, mientras la tasa de aciertos de valoracionas altas
+se mantiene relativamente estable pasando del 95,8%  al 94%
+
+A continuación se muestra la curva ROC, en la cual se aprecia que el modelo realiza una separación bastante
+buena
+
+```{r roc, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
+plot(performance(prediccion,'tpr','fpr'),colorize=T)
+abline(0,1,lty=2, col='grey')
+lines(x=c(0, 1), y=c(0, 1), col="grey", lty=2)
+```
+
+
+Se confirma lo anterior calculando el AUC o área bajo la curva ROC
+
+```{r auc}
+auc = performance(prediccion, "auc")
+auc = unlist(auc@y.values)
+auc
+```
+
+Se obtiene un AUC bastante cercano a uno (0,965), lo que confirma que el modelo distingue bastante bien las
+valoraciones altas de las bajas
+
+Para evitar la estimación de un modelo sobreajustado, repetimos el ejercicio anterior con una muestra de
+entrenamiento (65%) y otra de prueba (35%).
+
+```{r logit2}
+set.seed(123) 
+sample = sample.split(encuesta.logit.03$Target, SplitRatio = .65)
+encuesta.train = subset(encuesta.logit.03, sample == TRUE)
+encuesta.test  = subset(encuesta.logit.03, sample == FALSE)
+
+valoracion.logit.01 <- glm(Target ~ ., family = binomial(link = 'logit'), data = encuesta.train)
+
+stargazer(valoracion.logit.01, type ='text',  p.auto=FALSE)
+
+logitmfx(Target ~ ., data = encuesta.train, atmean = FALSE)
+
+1 - valoracion.logit.01$deviance/valoracion.logit.01$null.deviance
+
+lrtest(valoracion.logit.01)
+```
+
+Observando la significatividad individual y conjunta, los efectos marginales y el pseudo $R^2$, el modelo
+estimado (entrenado) en la muestra train no presenta ningún cambio a resaltar, en efecto son bastantes
+similares
+
+```{r confusion3}
+table(encuesta.test$Target)
+table(predicciones = predict(valoracion.logit.01, newdata = encuesta.test, type= 'response')>0.5)
+matriz.confusion.01 <-  table(prediccion = predict(valoracion.logit.01, newdata = encuesta.test, type='response')>0.5,
+                           observado =encuesta.test$Target)
+kable(matriz.confusion.01, format = 'html') %>% 
+    kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Calculamos la precisión, especificidad y sensibilidad 
+
+```{r confusion31}
+A1 = matriz.confusion.01[1,1] / sum(matriz.confusion.01[,1])
+A2 = matriz.confusion.01[2,2] / sum(matriz.confusion.01[,2])
+A3 <- sum(diag(matriz.confusion.01)) / sum(matriz.confusion.01)
+
+A1
+A2
+A3
+```
+
+La precisión se mantiene estable en 90,97% en comparación al 91,4% obtenido con toda la muestra, empleando el 
+límite del 0,5. Determinamos de nuevo el límite que maximiza la precisión
+
+```{r cut2, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
+prediccion.01 <- prediction(predict(valoracion.logit.01, newdata = encuesta.test, type= 'response'),
+                         encuesta.test$Target)
+precision.01 <- performance(prediccion.01,'acc')
+ac.val.01 = max(unlist(precision.01@y.values))
+th.01 = unlist(precision.01@x.values)[unlist(precision.01@y.values) == ac.val.01]
+plot(precision.01)
+abline(v=th.01, col='grey', lty=2)
+```
+
+En este caso tenemos 3 valores que maximizan la precisión: 0.6074202, 0.6025771 y 0.5942560.
+Empleamos el mayor de los valores
+
+```{r confusion4}
+table(encuesta.test$Target)
+table(predicciones = predict(valoracion.logit.01, newdata = encuesta.test, type= 'response')>unname(th.01[1]))
+matriz.confusion.01 <-  table(
+                              prediccion = predict(valoracion.logit.01, newdata = encuesta.test, type='response')>unname(th.01[1]),
+                              observado =encuesta.test$Target)
+kable(matriz.confusion.01, format = 'html')%>% 
+    kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Calculamos la precisión, especificidad y sensibilidad 
+
+```{r confusion41}
+A1 = matriz.confusion.01[1,1] / sum(matriz.confusion.01[,1])
+A2 = matriz.confusion.01[2,2] / sum(matriz.confusion.01[,2])
+A3 <- sum(diag(matriz.confusion.01)) / sum(matriz.confusion.01)
+
+A1
+A2
+A3
+```
+
+La precisión disminuye levemente de 91,6% a 91,5% comparado con el modelo estimado con la muestra completa
+empleando el límite que maximiza la precisión. La tasa de aciertos de las valoraciones bajas pasa de 84.47% 
+a 88,11% y la de valoracionas altas del 94% al 92,6%
+
+ Analizamos la curva ROC del modelo en submuestras
+
+```{r roc2, warning = FALSE, fig.height = 6, fig.width = 6, fig.align = "center"}
+plot(performance(prediccion.01,'tpr','fpr'),colorize=T)
+abline(0,1,lty=2, col='grey')
+lines(x=c(0, 1), y=c(0, 1), col="grey", lty=2)
+```
+
+
+Al igual que antes se obtiene una curva ROC que muestra una alta capacidad de clasificación del modelo.
+Calculamos el área bajo la curva ROC (AUC)
+
+```{r auc2}
+auc.01 = performance(prediccion.01, "auc")
+auc.01 = unlist(auc.01@y.values)
+auc.01
+```
+
+Se obtiene un valor similar al del modelo estimado con la muestra entera (0,966). El AUC confirma la buena
+capacidad del modelo para discriminar las valoraciones altas de las bajas.
+
+# Conclusiones
+
+El presente trabajo tiene como objeto analizar los posibles determinantes de la valoración global de las
+asignaturas que imparte un centro de educación superior. Se postulan como variables explicativas los items 
+individuales de la encuesta y características observables de los docentes.
+
+Mediante un análisis factorial se determina que los 9 items de la encuesta pueden reducirse a 2 factores latentes,
+que resumen las características asociadas a la docencia y a la relación profesor-alumno. Se emplean estos factores 
+y las características de los profesores como regresores en un logit para determinar el efecto de estos en la
+probabilidad de obtener una valoración alta.
+
+La regresión logística identifica tres variables estadísticamente significativas: los dos factores y la edad del 
+docente. Anzalizando los efectos marginales y el coeficiente de probabilidad relativos, se determina que la edad 
+no posee ningún efecto relevante, los efectos marginales de los factores son muy similares y la probabilidad
+relativa del factor docencia es mayor que la correspondiente a la relación profesor-alumno.
+
+El modelo estimado posee una buena bondad de ajuste, presentando un $R^2$ ajustado de 0.6, una precisión de 0,915
+y un AUC de 0,966, exhibiendo una muy buena capacidad de separación entre valoraciones altas y bajas.
+
+# Referencias bibliográficas
+
+Para una exposición teórica del análisis factorial se recomienda el texto de Daniel Peña [_Análisis de Datos Multivariantes_](http://www.mheducation.es/9788448136109-spain-analisis-multivariante-de-datos-group). Un muy buen desarrollo del modelo junto a su 
+implementación en R puede encontrarse en el libro de Everitt y Hothorn [_An Introduction to Applied Multivariate Analysis with R_](http://www.springer.com/gp/book/9781441996497). 
+
+Los modelos de regresión logística o variable dependiente cualitativa en general son parte de cualquier libro 
+introductorio de econometría y data science hoy día. Una introducción muy detallada puede encontrarse en el
+libro de Jeffrey M. Wooldridge [_Introducción a la econometría. Un enfoque moderno_](https://www.todostuslibros.com/libros/introduccion-a-la-econometria-4a-edicion_978-970-830-059-9). 
+Un texto con una exposición algo más breve y avanzada, pero con ejemplos en R es el de Kleiber y Zeileis [_Applied Econometrics with R_](http://www.springer.com/gp/book/9780387773162). Para una perspectiva más de data science una buena opción es [_Practical Data Science with R_](https://www.manning.com/books/practical-data-science-with-r) de Zumel y Mount.
+
+

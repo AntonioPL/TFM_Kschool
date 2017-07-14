@@ -251,29 +251,138 @@ def sustitucion3(datos, nulos, columna, direccion):
                 datos2.iloc[i,columna] = pd.np.nan
     return datos2
     
+def localiza2(datos, columna):
+    '''
+    INPUTS:
+    - datos: data frame en el cual se desean localizar los valores que cambian
+    
+    - columna: En que columna se desea realizar la búsqueda
+    
+    El output  son listas de tuplas, con el primer elemento de la tupla
+    indicando el índice donde comienza la secuencia y el segundo elemento el
+    índice en el cual acaba
+    
+    La siguiente función es igual a ``localiza`` salvo que en lugar de
+    quedarnos con los valores únicos, nos quedamos con valores que se
+    repiten hasta 3 veces.
+
+    '''
+    indice_bound1 = []
+    indice_bound2 = []
+    indice_post = [indice for indice in np.arange(1,datos.shape[0])  if \
+                   datos.iloc[indice,columna] != datos.iloc[indice-1,columna] ]
+    indice_post2 = [ (x,i) for i,x in enumerate(indice_post[0:len(indice_post)-3]) if \
+                         indice_post[i] == indice_post[i+1]-2 or \
+                         indice_post[i] == indice_post[i+1]-3 ]
+    for i,x in enumerate(indice_post2[0:len(indice_post2)]):
+        indice1 = indice_post2[i][0]
+        indice_temp = indice_post2[i][1] + 1
+        indice2 = indice_post[indice_temp]
+        indice_bound1.append(indice1)
+        indice_bound2.append(indice2)
+    return indice_bound1, indice_bound2
+    
+def sustitucion4(datos, nulos, columna, direccion):
+    '''
+    INPUTS:
+    - datos: data frame en el cual se deben realizar las sustituciones
+    
+    - nulos: Una lista que contiene los índices de las filas en las que se
+    encuentran los datos nulos a partir del cual comienza la secuencia de
+    nulos negativos
+    
+    - columna: En que columna se quieren realizar las sustituciones
+    
+    - direccion: Indica si se debe usar la columna de la izquierda o derecha
+    en el caso de que el resgistro anterior y posterior no coincidan. El valor
+    debe ser 1 en el caso de la colummna derecha y -1 en el caso de la
+    izquierda
+    
+    Esta función esta hecha NO para sustituir registros en blanco, sino
+    registros producto de errores humanos.
+    
+    Criterios:
+    - Para los rangos definido por localiza2, si el registro de la columna de
+    referencia es igual al de la misma columna antes del inicio del rango, se
+    sustituye el registro por el valor anterior.
+    - En caso que el registro de la columna de referencia es igual al de la
+    misma columna al final del rango, se sustituye por por el valor posterior
+    '''
+    datos2 = datos.copy()
+    for i,x in enumerate(nulos[0]):
+        for l in range(x, nulos[1][i]):
+            if datos2.iloc[l, columna + direccion] == datos2.iloc[x-1, columna + direccion]:
+                datos2.iloc[l, columna] = datos2.iloc[x-1,columna]
+            elif datos2.iloc[l, columna + direccion] == datos2.iloc[nulos[1][i], columna + direccion]:
+                datos2.iloc[l, columna] = datos2.iloc[nulos[1][i], columna]
+    return datos2
+    
 ##############################################################################
     
+#El proceso de limpieza de datos se divide en dos fases: 
+#- La primera, en la cual se limpian los datos correspondientes a los items de
+#evaluación. Primero se corrige un desplazamiento de columnas realizado por la
+#lectora óptica, posteriormente se eliminan caracteres generados por la lectora
+#y finalmente se sustituyen las valoraciones NAN por la mediana del resto.
 
+#-El segundo paso es el más complejo, y requiere la limpieza de un bloque de 
+#códigos administrativos (división, curso, asignatura y profesor). 
+#El reto de esta sección es que no se pueden emplear tácticas comunes de
+#eliminación y sustitución por imputación de valores.
+#Dado lo complejo de este bloque, se refiere al usuario revisar el notebook
+#para los detalles de la estrategia de limpieza
+
+#################################################################
+#Bloque de Items de Evaluación
+#################################################################
+
+#Se Cogen los items de respuesta (columnas de la 5 hasta el final) y con una
+#expresión regular se sustituyen los espacios en blanco por NaN y luego se 
+#eliminan las columnas donde todos los valores son NaN's
 encu_2 = encu_11.iloc[:,5:].replace(r'\s+', np.nan, regex=True).dropna(axis=1, how='all')
+
+#A continuación se deben realizar unas manipulaciones en las cuales se deben
+#desplazar registros de las últimas columnas. Para detalles ver el notebook
+
+#Se localizan los NaN's de la penúltima columna. Lo anterior nos da un vector
+#booleano de unos y ceros, los unos (TRUE) nos dan los elementos nulos.
+#En la próxima celda localizamos los valores no nulos buscando (con where) 
+#aquellas celdas iguales a cero
 i_nulos_p = encu_2.iloc[:,-2].isnull()
 i_nonulos_p = np.where(i_nulos_p == 0)[0].tolist()
 i_nulos_u = encu_2.iloc[:,-1].isnull()
 
+#Repetimos lo anterior con la última columna
 i_nonulos_u = np.where(i_nulos_u == 0)[0].tolist()
 i_nonulos_temp = set(i_nonulos_p) | set(i_nonulos_u)
 i_nonulos = sorted(list(i_nonulos_temp))
 
-
+#Se construye una lista que contenga los no nulos de la última y penúltima 
+#fila, usando la unión
 prueba = encu_2.iloc[i_nonulos,:]
+
+#Se aplica la función llenar
 prueba.apply(llenar, axis =1)
+
+#Sustituimos en el data frame original los valores modificados en el proceso
+#anterior
 encu_2.iloc[i_nonulos_p,:] = prueba
+
+#Eliminamos las dos últimas columnas
 encu_2.drop(encu_2.columns[-2:],inplace=True,axis=1)
 
+#Ahora procedemos a la siguiente operación, imputar los items vacios por el
+#valor mediano del resto de las valoraciones (fila)
+
+#Primero sustituimos los '??' por NAN
 encu_3 = encu_2.replace(['??'], np.nan)
 
-encu_3.apply(reemplazo_mediana, axis = 1)
+#Se aplica la función reemplazo mediana a las filas del data frame
+encu_4 = encu_3.apply(reemplazo_mediana, axis = 1)
 
+#################################################################
 #Bloque de Códigos (División, grupo, curso, asignatura y profesor)
+#################################################################
 
 #Se define el data frame
 encu_codigos = encu_11.iloc[:,:5]
@@ -403,6 +512,37 @@ encu_codigos30 = sustitucion(datos=encu_codigos291, columna=0, nulos=nulos_colum
 encu_codigos31 = sustitucion2(datos=encu_codigos30, columna=0, nulos=consec_col, nulos2=consec2_col, direccion=1)
 indice_post0 = localiza(datos=encu_codigos31,columna=0)
 encu_codigos32 = sustitucion3(datos=encu_codigos31,columna=0,nulos=indice_post0,direccion=1)
+
+#Se realiza la limpieza final de errores humanos empleando las funciones 
+#loaliza2 y sustitucion4
+indice_f3 = localiza2(datos= encu_codigos32, columna=3)
+encu_codigos33 = sustitucion4(datos=encu_codigos32, columna=3, nulos=indice_f3, direccion=1)
+indice_f2 = localiza2(datos= encu_codigos32, columna=2)
+encu_codigos34 = sustitucion4(datos=encu_codigos33, columna=2, nulos=indice_f2, direccion=1)
+
+#♦Se verifica que ambos bloques tengan el mismo número de filas
+encu_codigos34.shape
+encu_4.shape
+
+#Se convierte a numérico el bloque de valoraciones
+encu_5 = encu_4.apply(pd.to_numeric, axis = 1)
+
+#Se agrupan ambos bloques
+encu_6 = encu_codigos34.join(encu_5)
+
+#Se eliminan las filas con NAN's
+encu_def = encu_6.dropna()
+
+#Verificamos cuantas filas se han perdido en el proceso
+dif_fil = encu_6.shape[0] - encu_def.shape[0]
+print('Se han eliminado %d filas' %dif_fil)
+
+#Se asignan nombres a las columnas
+nombre_columnas = ['División', 'Curso', 'Grupo', 'Asignatura', 'Profesor', 'Item 1', 'Item 2', 'Item 3', 'Item 4', \
+                  'Item 5', 'Item 6', 'Item 7', 'Item 8', 'Item 9', 'Item 10']
+encu_def.columns = nombre_columnas
+
+encu_def.to_csv('encuesta.csv', index=False)
 
 t2 = time.time()
 

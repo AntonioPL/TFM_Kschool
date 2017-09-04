@@ -8,7 +8,7 @@
 
 PAQUETES <- c("readr","corrplot","REdaS","nFactors","reshape2","tidyverse","readxl","dplyr","ggplot2",
               "gmodels","lmtest","mfx","ROCR","caTools","rmarkdown","charlatan")
-inst <- match(PACKAGES, .packages(all=TRUE))
+inst <- match(PAQUETES, .packages(all=TRUE))
 need <- which(is.na(inst))
 if (length(need) > 0) install.packages(PAQUETES[need])
 #Cargar paquetes
